@@ -1,0 +1,124 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum InteractionType {
+  LIKE
+  PASS
+  BLOCK
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+}
+
+// ------------------------------------------------------
+// MODELS
+// ------------------------------------------------------
+
+model User {
+  id             String    @id @default(uuid())
+  phoneNumber    String    @unique // برای لاگین
+  name           String
+  bio            String?   @db.Text
+  birthDate      DateTime?
+  gender         Gender?
+  searchGender   Gender?   // جنسیتی که کاربر به دنبال آن است
+  
+  // سیستم لوکیشن: الان از روی شهر پر می‌شود، در آینده از روی GPS
+  city           String?
+  latitude       Float?
+  longitude      Float?
+
+  isActive       Boolean   @default(true) // برای ساسپند کردن کاربران متخلف
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // روابط
+  contactInfo    ContactInfo?
+  photos         Photo[]
+  
+  // روابط تعاملات (Swipe & Block)
+  actionsGiven    Interaction[] @relation("Actor")
+  actionsReceived Interaction[] @relation("Target")
+  
+  // روابط مچ‌ها
+  matchesAsUser1 Match[] @relation("MatchUser1")
+  matchesAsUser2 Match[] @relation("MatchUser2")
+
+  // روابط گزارش‌ها
+  reportsMade     Report[] @relation("Reporter")
+  reportsReceived Report[] @relation("Reported")
+}
+
+model ContactInfo {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  telegramId          String?
+  instagramId         String?
+  phoneForContact     String?  // شماره‌ای که به پارتنر نمایش داده می‌شود (ممکن است با شماره لاگین فرق کند)
+  
+  isContactShareEnabled Boolean  @default(false) // Core Security: کنترل نمایش اطلاعات
+}
+
+model Photo {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url       String
+  order     Int      @default(0) // بین 1 تا 6
+  createdAt DateTime @default(now())
+}
+
+model Interaction {
+  id        String          @id @default(uuid())
+  actorId   String
+  actor     User            @relation("Actor", fields: [actorId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User            @relation("Target", fields: [targetId], references: [id], onDelete: Cascade)
+  type      InteractionType
+  createdAt DateTime        @default(now())
+
+  @@unique([actorId, targetId]) // هر کاربر فقط یک‌بار می‌تواند روی یک کاربر دیگر اکشن انجام دهد (جلوگیری از اسپم)
+}
+
+model Match {
+  id        String   @id @default(uuid())
+  user1Id   String
+  user1     User     @relation("MatchUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2Id   String
+  user2     User     @relation("MatchUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([user1Id, user2Id])
+}
+
+model Report {
+  id          String       @id @default(uuid())
+  reporterId  String
+  reporter    User         @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedId  String
+  reported    User         @relation("Reported", fields: [reportedId], references: [id], onDelete: Cascade)
+  reason      String       @db.Text
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+}
