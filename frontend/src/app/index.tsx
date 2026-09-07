@@ -1,16 +1,25 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
+import { apiClient } from '../api/client';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (phone.length < 10) return; // ساده‌سازی اعتبارسنجی
+  const handleLogin = async () => {
+    if (phone.length < 10) return;
     
-    // فعلاً مسیر را به صفحه OTP تغییر می‌دهیم تا UI را تست کنیم
-    // بعداً درخواست Axios به بک‌اند در اینجا قرار می‌گیرد
-    router.push({ pathname: '/otp', params: { phone } });
+    setIsLoading(true);
+    try {
+      // ارسال درخواست تولید OTP به بک‌اند
+      await apiClient.post('/users/login', { phoneNumber: phone });
+      router.push({ pathname: '/otp', params: { phone } });
+    } catch (error) {
+      Alert.alert('Error', 'مشکلی در ارسال کد پیش آمد. سرور روشن است؟');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -32,9 +41,12 @@ export default function LoginScreen() {
 
       <TouchableOpacity
         onPress={handleLogin}
-        className="w-full bg-teal-500 rounded-xl py-4 items-center"
+        disabled={isLoading}
+        className={`w-full rounded-xl py-4 items-center ${isLoading ? 'bg-teal-700' : 'bg-teal-500'}`}
       >
-        <Text className="text-white font-bold text-lg">Continue</Text>
+        <Text className="text-white font-bold text-lg">
+          {isLoading ? 'Sending...' : 'Continue'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
