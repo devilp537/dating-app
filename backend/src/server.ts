@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes'; 
 import photoRoutes from './routes/photo.routes';
+import swipeRoutes from './routes/swipe.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/photos', photoRoutes);
+app.use('/api/swipe', swipeRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Dating App API is running' });
