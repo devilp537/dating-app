@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Alert } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { 
   useSharedValue, 
@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { apiClient } from '../api/client';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25; // اگر ۲۵ درصد عرض صفحه کشیده شود، تایید می‌شود
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 
 type User = {
   id: string;
@@ -22,8 +22,10 @@ type User = {
   bio: string;
 };
 
-// کامپوننت مجزا برای هر کارت تعاملی
-const SwipeableCard = ({ user, onSwipeOut }: { user: User, onSwipeOut: () => void }) => {
+// ------------------------------------------------------------------
+// SwipeableCard Component
+// ------------------------------------------------------------------
+const SwipeableCard = ({ user, onSwipeOut }: { user: User, onSwipeOut: (type: 'LIKE' | 'PASS') => void }) => {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
@@ -37,25 +39,23 @@ const SwipeableCard = ({ user, onSwipeOut }: { user: User, onSwipeOut: () => voi
       const isSwipedLeft = event.translationX < -SWIPE_THRESHOLD;
 
       if (isSwipedRight || isSwipedLeft) {
-        // پرتاب شدن کارت به بیرون از صفحه
+        const swipeType = isSwipedRight ? 'LIKE' : 'PASS';
+        
         translateX.value = withSpring(Math.sign(event.translationX) * 500, { velocity: event.velocityX });
         translateY.value = withSpring(event.translationY, { velocity: event.velocityY });
         
-        // اجرای تابع حذف کارت از لیست پس از اتمام انیمیشن
-        runOnJS(onSwipeOut)();
+        runOnJS(onSwipeOut)(swipeType);
       } else {
-        // بازگشت فنری به مرکز در صورتی که کارت به اندازه کافی کشیده نشده باشد
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
       }
     });
 
   const animatedStyle = useAnimatedStyle(() => {
-    // ایجاد چرخش ملایم بر اساس میزان جابجایی در محور X
     const rotate = interpolate(
       translateX.value,
       [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-      [-10, 0, 10], // حداکثر ۱۰ درجه چرخش
+      [-10, 0, 10],
       Extrapolation.CLAMP
     );
 
@@ -80,6 +80,10 @@ const SwipeableCard = ({ user, onSwipeOut }: { user: User, onSwipeOut: () => voi
   );
 };
 
+
+// ------------------------------------------------------------------
+// HomeScreen Component
+// ------------------------------------------------------------------
 export default function HomeScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,29 +92,73 @@ export default function HomeScreen() {
     fetchDiscoveryUsers();
   }, []);
 
+  const getValidToken = async () => {
+    const token = await AsyncStorage.getItem('userToken');
+    if (!token || token === 'null' || token === 'undefined') {
+      return null;
+    }
+    return token;
+  };
+
+  const forceLogout = async () => {
+    await AsyncStorage.removeItem('userToken');
+    router.replace('/');
+  };
+
   const fetchDiscoveryUsers = async () => {
     try {
-      const token = await AsyncStorage.getItem('userToken');
+      const token = await getValidToken();
+      
+      if (!token) {
+        console.log('Invalid Token Detected! Redirecting to login.');
+        await forceLogout();
+        return;
+      }
+      
       const response = await apiClient.get('/users/discovery', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUsers(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('خطا در دریافت لیست کاربران:', error);
+      if (error.response?.status === 401) {
+        await forceLogout();
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('userToken');
-    router.replace('/');
+    await forceLogout();
   };
 
-  const handleSwipeOut = () => {
-    // کاربر فعلی را از آرایه حذف کن تا کارت بعدی رندر شود
+  const handleSwipeOut = async (targetId: string, type: 'LIKE' | 'PASS') => {
     setUsers((prevUsers) => prevUsers.slice(1));
-    // در مراحل بعدی می‌توانیم در اینجا درخواست Like یا Pass را به بک‌اند بفرستیم
+    
+    try {
+      const token = await getValidToken();
+      if (!token) {
+        await forceLogout();
+        return;
+      }
+
+      const response = await apiClient.post('/users/swipe', 
+        { targetId, type }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.isMatch) {
+        Alert.alert('تبریک! 🎉', 'شما با هم مچ شدید! حالا می‌توانید چت کنید.');
+      }
+    } catch (error: any) {
+      console.error('خطا در ثبت تعامل:', error);
+      if (error.response?.status === 401) {
+         await forceLogout();
+      } else {
+         Alert.alert('خطای ارتباط', 'ارتباط با سرور برقرار نشد!');
+      }
+    }
   };
 
   if (loading) {
@@ -125,26 +173,32 @@ export default function HomeScreen() {
     <GestureHandlerRootView className="flex-1 bg-zinc-900">
       <View className="flex-1 px-6 pt-16 pb-8">
         
-        {/* هدر */}
+        {/* هدر یکپارچه و اصلاح‌شده */}
         <View className="w-full flex-row justify-between items-center mb-8">
           <Text className="text-2xl font-bold text-teal-400">Discover</Text>
-          <TouchableOpacity onPress={handleLogout}>
-            <Text className="text-zinc-500 font-bold">Logout</Text>
-          </TouchableOpacity>
+          <View className="flex-row items-center space-x-4">
+            <TouchableOpacity onPress={() => router.push('./matches')}>
+              <Text className="text-teal-400 font-bold mr-4">مچ‌ها</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleLogout}>
+              <Text className="text-zinc-500 font-bold">Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         
-        {/* کانتینر کارت‌ها */}
         <View className="flex-1 relative w-full max-h-[550px]">
           {users.length > 0 ? (
-            // فقط اولین کاربر در آرایه را به عنوان کارت بالایی و تعاملی رندر می‌کنیم
             <SwipeableCard 
               key={users[0].id} 
               user={users[0]} 
-              onSwipeOut={handleSwipeOut} 
+              onSwipeOut={(type) => handleSwipeOut(users[0].id, type)} 
             />
           ) : (
             <View className="flex-1 items-center justify-center border border-zinc-800 border-dashed rounded-3xl">
-              <Text className="text-gray-500 text-lg">کاربر دیگری در اطراف شما یافت نشد!</Text>
+              <Text className="text-gray-500 text-lg mb-4">کاربر دیگری یافت نشد!</Text>
+              <TouchableOpacity onPress={fetchDiscoveryUsers} className="bg-teal-500 px-6 py-2 rounded-lg">
+                <Text className="text-white font-bold">تلاش مجدد</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
