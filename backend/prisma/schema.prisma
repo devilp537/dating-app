@@ -56,10 +56,6 @@ model User {
   contactInfo    ContactInfo?
   photos         Photo[]
   
-  // روابط تعاملات (Swipe & Block)
-  actionsGiven    Interaction[] @relation("Actor")
-  actionsReceived Interaction[] @relation("Target")
-  
   // روابط مچ‌ها
   matchesAsUser1 Match[] @relation("MatchUser1")
   matchesAsUser2 Match[] @relation("MatchUser2")
@@ -67,6 +63,10 @@ model User {
   // روابط گزارش‌ها
   reportsMade     Report[] @relation("Reporter")
   reportsReceived Report[] @relation("Reported")
+
+  // روابط تعاملات (Swipe & Block)
+  swipesSent      Interaction[] @relation("Swiper")
+  swipesReceived  Interaction[] @relation("Target")
 }
 
 model ContactInfo {
@@ -90,18 +90,6 @@ model Photo {
   createdAt DateTime @default(now())
 }
 
-model Interaction {
-  id        String          @id @default(uuid())
-  actorId   String
-  actor     User            @relation("Actor", fields: [actorId], references: [id], onDelete: Cascade)
-  targetId  String
-  target    User            @relation("Target", fields: [targetId], references: [id], onDelete: Cascade)
-  type      InteractionType
-  createdAt DateTime        @default(now())
-
-  @@unique([actorId, targetId]) // هر کاربر فقط یک‌بار می‌تواند روی یک کاربر دیگر اکشن انجام دهد (جلوگیری از اسپم)
-}
-
 model Match {
   id        String   @id @default(uuid())
   user1Id   String
@@ -122,4 +110,17 @@ model Report {
   reason      String       @db.Text
   status      ReportStatus @default(PENDING)
   createdAt   DateTime     @default(now())
+}
+
+model Interaction {
+  id        String          @id @default(uuid())
+  swiperId  String
+  targetId  String
+  type      InteractionType
+  createdAt DateTime        @default(now())
+
+  swiper    User            @relation("Swiper", fields: [swiperId], references: [id], onDelete: Cascade)
+  target    User            @relation("Target", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([swiperId, targetId]) // هر کاربر فقط یک‌بار می‌تواند روی یک کاربر دیگر اکشن انجام دهد (جلوگیری از اسپم)
 }

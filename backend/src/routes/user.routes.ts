@@ -1,13 +1,15 @@
 import { Router } from 'express';
-import { updateProfile, getProfile } from '../controllers/user.controller';
+import { requestOtp, verifyOtp, getProfile, updateProfile, getDiscoveryUsers, swipeUser } from '../controllers/user.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// Middleware محافظتی روی تمام روت‌های این فایل اعمال می‌شود
-router.use(requireAuth);
+router.post('/login', requestOtp);
+router.post('/verify', verifyOtp);
 
-router.get('/profile', getProfile);
-router.put('/profile', updateProfile);
+router.get('/profile', requireAuth, getProfile);
+router.put('/profile', requireAuth, updateProfile);
+router.get('/discovery', requireAuth, getDiscoveryUsers); 
+router.post('/swipe', requireAuth, swipeUser);
 
 export default router;

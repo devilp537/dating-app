@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt';
+import jwt from 'jsonwebtoken';
 
-// اضافه کردن userId به type استاندارد Request در Express
+const SECRET = 'SUPER_SECRET_KEY'; // دقیقاً همان کلید بالا
+
 declare global {
   namespace Express {
     interface Request {
@@ -11,22 +12,27 @@ declare global {
 }
 
 export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
+  console.log('--- Auth Middleware Triggered ---');
   const authHeader = req.headers.authorization;
 
+  console.log('Auth Header Received:', authHeader ? 'Yes' : 'No');
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'دسترسی غیرمجاز: توکن ارسال نشده است' });
+    console.log('Failed: No Bearer Token');
+    res.status(401).json({ error: 'توکن ارائه نشده است' });
     return;
   }
 
   const token = authHeader.split(' ')[1];
-  const decoded = verifyToken(token) as { userId: string } | null;
+  console.log('Token extracted:', token.substring(0, 20) + '...'); 
 
-  if (!decoded || !decoded.userId) {
-    res.status(401).json({ error: 'دسترسی غیرمجاز: توکن نامعتبر یا منقضی شده است' });
-    return;
+  try {
+    const payload = jwt.verify(token, SECRET) as { userId: string };
+    req.userId = payload.userId;
+    console.log('Token Verified! UserID:', req.userId);
+    next();
+  } catch (error) {
+    console.log('Failed: Token Verification Error', error);
+    res.status(401).json({ error: 'توکن نامعتبر یا منقضی شده است' });
   }
-
-  // ذخیره آیدی کاربر در آبجکت ریکوئست برای استفاده در کنترلرها
-  req.userId = decoded.userId;
-  next();
 };
