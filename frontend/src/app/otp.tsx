@@ -9,7 +9,7 @@ export default function OTPScreen() {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleVerify = async () => {
+const handleVerify = async () => {
     if (code.length < 5) return;
 
     setIsLoading(true);
@@ -19,11 +19,14 @@ export default function OTPScreen() {
         otp: code,
       });
 
-      // ذخیره توکن در حافظه دستگاه
       await AsyncStorage.setItem('userToken', response.data.token);
       
-      // هدایت به صفحه اصلی و حذف تاریخچه صفحات لاگین
-      router.replace('./home'); 
+      // اگر کاربر جدید است به صفحه ستاپ پروفایل برود
+      if (response.data.user.name === 'کاربر جدید') {
+        router.replace('./profile-setup');
+      } else {
+        router.replace('/home'); 
+      }
       
     } catch (error: any) {
       Alert.alert('خطا', 'کد وارد شده اشتباه است');
