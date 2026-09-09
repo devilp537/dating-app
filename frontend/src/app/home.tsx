@@ -1,5 +1,6 @@
+//home.tsx
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Alert, Pressable } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { 
   useSharedValue, 
@@ -7,27 +8,52 @@ import Animated, {
   withSpring, 
   runOnJS, 
   interpolate, 
-  Extrapolation 
+  Extrapolation,
+  withTiming
 } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { apiClient } from '../api/client';
+import { AntDesign, Feather } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
+const EMOJIS = ['👽', '👻', '🤖', '👾', '🤡', '🤠', '😎', '🤓', '🦊', '🐱'];
 
-type User = {
-  id: string;
-  name: string;
-  bio: string;
+type User = { id: string; name: string; bio: string; };
+
+const MinimalButton = ({ icon, color, onPress, isLarge = false }: any) => {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <Pressable
+      onPressIn={() => (scale.value = withSpring(0.9))}
+      onPressOut={() => (scale.value = withSpring(1))}
+      onPress={onPress}
+    >
+      <Animated.View 
+        className={`${isLarge ? 'w-20 h-20' : 'w-16 h-16'} bg-[#18181B] border border-white/5 rounded-full items-center justify-center`}
+        style={[animatedStyle, { shadowColor: color, shadowOpacity: 0.15, shadowRadius: 25, elevation: 15 }]}
+      >
+        {icon}
+      </Animated.View>
+    </Pressable>
+  );
 };
 
-// ------------------------------------------------------------------
-// SwipeableCard Component
-// ------------------------------------------------------------------
-const SwipeableCard = ({ user, onSwipeOut }: { user: User, onSwipeOut: (type: 'LIKE' | 'PASS') => void }) => {
+const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection }: any) => {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  const userEmoji = EMOJIS[user.id.charCodeAt(0) % EMOJIS.length];
+
+  useEffect(() => {
+    if (externalSwipeDirection === 'LIKE') {
+      translateX.value = withTiming(SCREEN_WIDTH * 1.5, { duration: 300 }, () => runOnJS(onSwipeOut)('LIKE'));
+    } else if (externalSwipeDirection === 'PASS') {
+      translateX.value = withTiming(-SCREEN_WIDTH * 1.5, { duration: 300 }, () => runOnJS(onSwipeOut)('PASS'));
+    }
+  }, [externalSwipeDirection]);
 
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
@@ -40,10 +66,8 @@ const SwipeableCard = ({ user, onSwipeOut }: { user: User, onSwipeOut: (type: 'L
 
       if (isSwipedRight || isSwipedLeft) {
         const swipeType = isSwipedRight ? 'LIKE' : 'PASS';
-        
         translateX.value = withSpring(Math.sign(event.translationX) * 500, { velocity: event.velocityX });
         translateY.value = withSpring(event.translationY, { velocity: event.velocityY });
-        
         runOnJS(onSwipeOut)(swipeType);
       } else {
         translateX.value = withSpring(0);
@@ -52,156 +76,118 @@ const SwipeableCard = ({ user, onSwipeOut }: { user: User, onSwipeOut: (type: 'L
     });
 
   const animatedStyle = useAnimatedStyle(() => {
-    const rotate = interpolate(
-      translateX.value,
-      [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-      [-10, 0, 10],
-      Extrapolation.CLAMP
-    );
-
+    const rotate = interpolate(translateX.value, [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2], [-8, 0, 8], Extrapolation.CLAMP);
     return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { rotate: `${rotate}deg` },
-      ],
+      transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { rotate: `${rotate}deg` }],
     };
   });
 
   return (
     <GestureDetector gesture={panGesture}>
-      <Animated.View style={[animatedStyle, { position: 'absolute', width: '100%', height: '100%', zIndex: 1 }]}>
-        <View className="w-full h-full bg-zinc-800 rounded-3xl border border-zinc-700 p-6 items-center justify-center shadow-lg">
-          <Text className="text-3xl font-bold text-white mb-2">{user.name}</Text>
-          <Text className="text-gray-400 text-center text-lg">{user.bio || 'بدون بیوگرافی'}</Text>
+      <Animated.View style={[animatedStyle, { position: 'absolute', zIndex: 1 }]} className="w-full items-center">
+        {/* ابعاد کارت در اینجا به صورت دقیق (عرض 320، ارتفاع 480) تنظیم شده تا زیادی بزرگ نباشد */}
+        <View className="w-[320px] h-[480px] bg-[#18181B] rounded-[48px] border border-white/5 p-8 items-center justify-center shadow-2xl">
+          <View className="w-32 h-32 bg-[#27272A] rounded-full items-center justify-center mb-8 border border-white/5">
+            <Text className="text-6xl">{userEmoji}</Text>
+          </View>
+          <Text className="text-3xl font-extrabold text-white mb-3 tracking-wide">{user.name}</Text>
+          <Text className="text-[#A1A1AA] text-center text-base leading-7 px-2">{user.bio || 'بدون بیوگرافی'}</Text>
         </View>
       </Animated.View>
     </GestureDetector>
   );
 };
 
-
-// ------------------------------------------------------------------
-// HomeScreen Component
-// ------------------------------------------------------------------
 export default function HomeScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [externalDirection, setExternalDirection] = useState<'LIKE' | 'PASS' | null>(null);
 
-  useEffect(() => {
-    fetchDiscoveryUsers();
-  }, []);
-
-  const getValidToken = async () => {
-    const token = await AsyncStorage.getItem('userToken');
-    if (!token || token === 'null' || token === 'undefined') {
-      return null;
-    }
-    return token;
-  };
-
-  const forceLogout = async () => {
-    await AsyncStorage.removeItem('userToken');
-    router.replace('/');
-  };
+  useEffect(() => { fetchDiscoveryUsers(); }, []);
 
   const fetchDiscoveryUsers = async () => {
     try {
-      const token = await getValidToken();
-      
-      if (!token) {
-        console.log('Invalid Token Detected! Redirecting to login.');
-        await forceLogout();
-        return;
-      }
-      
-      const response = await apiClient.get('/users/discovery', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) return router.replace('/');
+      const response = await apiClient.get('/users/discovery', { headers: { Authorization: `Bearer ${token}` } });
       setUsers(response.data);
-    } catch (error: any) {
-      console.error('خطا در دریافت لیست کاربران:', error);
-      if (error.response?.status === 401) {
-        await forceLogout();
-      }
+    } catch (error) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    await forceLogout();
-  };
-
   const handleSwipeOut = async (targetId: string, type: 'LIKE' | 'PASS') => {
-    setUsers((prevUsers) => prevUsers.slice(1));
-    
+    setUsers((prev) => prev.slice(1));
+    setExternalDirection(null);
     try {
-      const token = await getValidToken();
-      if (!token) {
-        await forceLogout();
-        return;
-      }
-
-      const response = await apiClient.post('/users/swipe', 
-        { targetId, type }, 
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.isMatch) {
-        Alert.alert('تبریک! 🎉', 'شما با هم مچ شدید! حالا می‌توانید چت کنید.');
-      }
-    } catch (error: any) {
-      console.error('خطا در ثبت تعامل:', error);
-      if (error.response?.status === 401) {
-         await forceLogout();
-      } else {
-         Alert.alert('خطای ارتباط', 'ارتباط با سرور برقرار نشد!');
-      }
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await apiClient.post('/users/swipe', { targetId, type }, { headers: { Authorization: `Bearer ${token}` } });
+      if (response.data.isMatch) Alert.alert('تبریک! 🎉', 'شما با هم مچ شدید!');
+    } catch (error) {
+      console.error(error);
     }
   };
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-zinc-900">
-        <ActivityIndicator size="large" color="#2dd4bf" />
+      <View className="flex-1 items-center justify-center bg-[#09090B]">
+        <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
   }
 
   return (
-    <GestureHandlerRootView className="flex-1 bg-zinc-900">
-      <View className="flex-1 px-6 pt-16 pb-8">
+    <GestureHandlerRootView className="flex-1 bg-[#09090B]">
+      <View className="flex-1 pt-16 pb-12">
         
-        {/* هدر یکپارچه و اصلاح‌شده */}
-        <View className="w-full flex-row justify-between items-center mb-8">
-          <Text className="text-2xl font-bold text-teal-400">Discover</Text>
-          <View className="flex-row items-center space-x-4">
-            <TouchableOpacity onPress={() => router.push('./matches')}>
-              <Text className="text-teal-400 font-bold mr-4">مچ‌ها</Text>
+        {/* Header */}
+        <View className="flex-row justify-between items-center px-8 mb-4">
+          <Text className="text-2xl font-extrabold text-white tracking-widest uppercase">Discover</Text>
+          <View className="flex-row space-x-6">
+            <TouchableOpacity onPress={() => router.push('/matches')}>
+              <Feather name="message-circle" size={26} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleLogout}>
-              <Text className="text-zinc-500 font-bold">Logout</Text>
+            <TouchableOpacity onPress={() => AsyncStorage.removeItem('userToken').then(() => router.replace('/'))}>
+              <Feather name="log-out" size={26} color="#52525B" />
             </TouchableOpacity>
           </View>
         </View>
         
-        <View className="flex-1 relative w-full max-h-[550px]">
+        {/* Cards Container - اضافه کردن Flex-1 برای وسط‌چین کردن عمودی */}
+        <View className="flex-1 w-full items-center justify-center mt-4">
           {users.length > 0 ? (
             <SwipeableCard 
               key={users[0].id} 
               user={users[0]} 
-              onSwipeOut={(type) => handleSwipeOut(users[0].id, type)} 
+              externalSwipeDirection={externalDirection}
+              onSwipeOut={(type: 'LIKE' | 'PASS') => handleSwipeOut(users[0].id, type)} 
             />
           ) : (
-            <View className="flex-1 items-center justify-center border border-zinc-800 border-dashed rounded-3xl">
-              <Text className="text-gray-500 text-lg mb-4">کاربر دیگری یافت نشد!</Text>
-              <TouchableOpacity onPress={fetchDiscoveryUsers} className="bg-teal-500 px-6 py-2 rounded-lg">
-                <Text className="text-white font-bold">تلاش مجدد</Text>
-              </TouchableOpacity>
+            <View className="w-[320px] h-[480px] items-center justify-center bg-[#18181B] rounded-[48px] border border-white/5">
+              <Feather name="inbox" size={48} color="#3F3F46" className="mb-4" />
+              <Text className="text-[#A1A1AA] text-lg font-medium">کاربری یافت نشد</Text>
             </View>
           )}
         </View>
+
+        {/* Action Buttons - ایجاد فاصله مناسب با مارجین بالا */}
+        {users.length > 0 && (
+          <View className="flex-row justify-center items-center space-x-8 mt-10">
+            <MinimalButton 
+              icon={<Feather name="x" size={28} color="#EF4444" />} 
+              color="#EF4444"
+              onPress={() => setExternalDirection('PASS')} 
+            />
+            <MinimalButton 
+              icon={<AntDesign name="heart" size={32} color="#06B6D4" />} 
+              color="#06B6D4"
+              isLarge
+              onPress={() => setExternalDirection('LIKE')} 
+            />
+          </View>
+        )}
 
       </View>
     </GestureHandlerRootView>
