@@ -6,6 +6,7 @@ import userRoutes from './routes/user.routes';
 import photoRoutes from './routes/photo.routes';
 import swipeRoutes from './routes/swipe.routes';
 import matchRoutes from './routes/match.routes';
+import chatRoutes from './routes/chat.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/swipe', swipeRoutes);
 app.use('/api/matches', matchRoutes);
+app.use('/api/chat', chatRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Dating App API is running' });

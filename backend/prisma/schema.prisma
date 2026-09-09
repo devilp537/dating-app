@@ -1,5 +1,3 @@
-// backend/prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -35,38 +33,39 @@ enum ReportStatus {
 // ------------------------------------------------------
 
 model User {
-  id             String    @id @default(uuid())
-  phoneNumber    String    @unique // برای لاگین
-  name           String
-  bio            String?   @db.Text
-  birthDate      DateTime?
-  gender         Gender?
-  searchGender   Gender?   // جنسیتی که کاربر به دنبال آن است
+  id              String   @id @default(uuid())
+  phoneNumber     String   @unique
+  name            String?
+  bio             String?
+  gender          Gender?
+  contactId       String?  // آیدی ارتباطی مستقیم
+  showPhoneNumber Boolean  @default(false)
+  birthDate       DateTime?
   
-  // سیستم لوکیشن: الان از روی شهر پر می‌شود، در آینده از روی GPS
-  city           String?
-  latitude       Float?
-  longitude      Float?
+  city            String?
+  latitude        Float?
+  longitude       Float?
 
-  isActive       Boolean   @default(true) // برای ساسپند کردن کاربران متخلف
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  // روابط
-  contactInfo    ContactInfo?
-  photos         Photo[]
+  contactInfo     ContactInfo?
+  photos          Photo[]
   
-  // روابط مچ‌ها
-  matchesAsUser1 Match[] @relation("MatchUser1")
-  matchesAsUser2 Match[] @relation("MatchUser2")
+  matchesAsUser1  Match[] @relation("MatchUser1")
+  matchesAsUser2  Match[] @relation("MatchUser2")
 
-  // روابط گزارش‌ها
   reportsMade     Report[] @relation("Reporter")
   reportsReceived Report[] @relation("Reported")
 
-  // روابط تعاملات (Swipe & Block)
-  swipesSent      Interaction[] @relation("Swiper")
-  swipesReceived  Interaction[] @relation("Target")
+  // روابط تعاملات (نسخه اصلاح شده و بدون تکرار)
+  sentInteractions     Interaction[] @relation("Swiper")
+  receivedInteractions Interaction[] @relation("Target")
+
+  // روابط چت
+  sentMessages         Message[]     @relation("SentMessages")
+  receivedMessages     Message[]     @relation("ReceivedMessages")
 }
 
 model ContactInfo {
@@ -76,9 +75,9 @@ model ContactInfo {
   
   telegramId          String?
   instagramId         String?
-  phoneForContact     String?  // شماره‌ای که به پارتنر نمایش داده می‌شود (ممکن است با شماره لاگین فرق کند)
+  phoneForContact     String?
   
-  isContactShareEnabled Boolean  @default(false) // Core Security: کنترل نمایش اطلاعات
+  isContactShareEnabled Boolean  @default(false)
 }
 
 model Photo {
@@ -86,7 +85,7 @@ model Photo {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   url       String
-  order     Int      @default(0) // بین 1 تا 6
+  order     Int      @default(0)
   createdAt DateTime @default(now())
 }
 
@@ -122,5 +121,16 @@ model Interaction {
   swiper    User            @relation("Swiper", fields: [swiperId], references: [id], onDelete: Cascade)
   target    User            @relation("Target", fields: [targetId], references: [id], onDelete: Cascade)
 
-  @@unique([swiperId, targetId]) // هر کاربر فقط یک‌بار می‌تواند روی یک کاربر دیگر اکشن انجام دهد (جلوگیری از اسپم)
+  @@unique([swiperId, targetId])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  text       String
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
 }

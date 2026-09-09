@@ -64,18 +64,24 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
 
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, bio, gender, birthDate } = req.body;
+    const userId = req.userId as string;
+    // اضافه شدن contactId و showPhoneNumber به مقادیر دریافتی
+    const { name, bio, gender, contactId, showPhoneNumber } = req.body;
+
     const updatedUser = await prisma.user.update({
-      where: { id: req.userId },
-      data: {
-        name,
-        bio,
+      where: { id: userId },
+      data: { 
+        name, 
+        bio, 
         gender,
-        birthDate: birthDate ? new Date(birthDate) : undefined,
+        contactId,
+        showPhoneNumber: Boolean(showPhoneNumber)
       },
     });
-    res.json({ message: 'پروفایل با موفقیت بروزرسانی شد', user: updatedUser });
+
+    res.json(updatedUser);
   } catch (error) {
+    console.error('Update Profile Error:', error);
     res.status(500).json({ error: 'خطا در بروزرسانی پروفایل' });
   }
 };
