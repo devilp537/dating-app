@@ -1,117 +1,90 @@
-//matches.tsx
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, Clipboard, Pressable } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, Clipboard } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../api/client';
 import { Feather } from '@expo/vector-icons';
 
-const EMOJIS = ['👽', '👻', '🤖', '👾', '🤡', '🤠', '😎', '🤓', '🦊', '🐱'];
-
-type MatchedUser = {
-  id: string;
-  name: string;
-  bio: string;
-  phoneNumber: string;
-  contactId: string | null;
-  showPhoneNumber: boolean;
-};
+const COLORS = { bg: '#09090B', surface: '#18181B', border: '#27272A', accent: '#8B5CF6', text: '#FAFAFA', muted: '#A1A1AA' };
+const EMOJIS = ['👽', '👻', '🤖', '👾', '🤡', '😎', '🤓', '🦊'];
 
 export default function MatchesScreen() {
-  const [matches, setMatches] = useState<MatchedUser[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchMatches = async () => {
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) return router.replace('/');
+      const res = await apiClient.get('/chat/matches', { headers: { Authorization: `Bearer ${token}` } });
+      setMatches(res.data.slice(0, 10));
+    } catch {} finally { setLoading(false); }
+  };
 
   useEffect(() => {
     fetchMatches();
   }, []);
 
-  const fetchMatches = async () => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) return router.replace('/');
-      const response = await apiClient.get('/chat/matches', { headers: { Authorization: `Bearer ${token}` } });
-      setMatches(response.data.slice(0, 10));
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const copyToClipboard = (text: string, type: string) => {
-    Clipboard.setString(text);
-    Alert.alert('کپی شد', `${type} در کلیپ‌بورد ذخیره شد.`);
-  };
-
-  if (loading) return (
-    <View className="flex-1 items-center justify-center bg-black">
-      <ActivityIndicator size="large" color="#FFFFFF" />
-    </View>
-  );
+  const copy = (t: string, type: string) => { Clipboard.setString(t); Alert.alert('کپی شد', `${type} کپی شد.`); };
 
   return (
-    <View className="flex-1 bg-black px-6 pt-16 pb-8">
-      {/* Header */}
-      <View className="flex-row justify-between items-center mb-8 px-2">
-        <Text className="text-3xl font-extrabold text-white tracking-tight">Matches</Text>
-        <TouchableOpacity onPress={() => router.replace('/home')} className="bg-[#1C1C1E] p-3 rounded-full">
-          <Feather name="x" size={24} color="#8E8E93" />
-        </TouchableOpacity>
+    <View className="flex-1 px-5 pt-14 pb-8" style={{ backgroundColor: COLORS.bg }}>
+      <View className="flex-row justify-between items-center mb-6">
+        <Text className="text-2xl font-bold" style={{ color: COLORS.text }}>Matches</Text>
+        <View className="flex-row gap-3">
+          <TouchableOpacity onPress={fetchMatches} className="p-2.5 rounded-2xl border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
+            <Feather name="refresh-cw" size={20} color={COLORS.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.replace('/home')} className="p-2.5 rounded-2xl border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
+            <Feather name="chevron-left" size={20} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {matches.length === 0 ? (
-        <View className="flex-1 items-center justify-center">
-          <Feather name="users" size={48} color="#3A3A3C" className="mb-4" />
-          <Text className="text-[#8E8E93] text-lg font-medium">هنوز مچی ندارید</Text>
-        </View>
+      {loading ? (
+         <View className="flex-1 items-center justify-center"><ActivityIndicator color={COLORS.accent} size="large" /></View>
       ) : (
         <FlatList
           data={matches}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
-            const userEmoji = EMOJIS[item.id.charCodeAt(0) % EMOJIS.length];
-            return (
-              <View className="bg-[#1C1C1E] p-6 rounded-[32px] mb-4">
-                <View className="flex-row items-center mb-6">
-                  <View className="w-16 h-16 bg-[#2C2C2E] rounded-full items-center justify-center mr-4">
-                    <Text className="text-3xl">{userEmoji}</Text>
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-2xl font-bold tracking-wide">{item.name}</Text>
-                    <Text className="text-[#8E8E93] text-sm mt-1 leading-5">{item.bio || 'بدون بیوگرافی'}</Text>
-                  </View>
+          ListEmptyComponent={
+            <View className="items-center mt-20">
+              <Feather name="users" size={48} color={COLORS.muted} className="mb-4" />
+              <Text style={{ color: COLORS.muted }} className="mb-6">مچی ندارید</Text>
+              <TouchableOpacity className="px-6 py-3 rounded-2xl flex-row items-center gap-2" style={{ backgroundColor: COLORS.border }} onPress={fetchMatches}>
+                <Feather name="refresh-cw" size={16} color={COLORS.text} />
+                <Text style={{ color: COLORS.text }} className="font-bold">تلاش مجدد</Text>
+              </TouchableOpacity>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <View className="p-5 rounded-[24px] mb-4 border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
+              <View className="flex-row items-center mb-5">
+                <View className="w-14 h-14 rounded-full items-center justify-center mr-4" style={{ backgroundColor: '#27272A' }}>
+                  <Text className="text-2xl">{EMOJIS[item.id.charCodeAt(0) % EMOJIS.length]}</Text>
                 </View>
-
-                <View className="flex-row space-x-3 space-x-reverse">
-                  {item.contactId && (
-                    <Pressable
-                      className="flex-1 bg-[#32ADE6]/10 py-3.5 rounded-2xl items-center flex-row justify-center space-x-2"
-                      onPress={() => copyToClipboard(item.contactId!, 'آیدی')}
-                    >
-                      <Feather name="at-sign" size={16} color="#32ADE6" />
-                      <Text className="text-[#32ADE6] font-bold">{item.contactId}</Text>
-                    </Pressable>
-                  )}
-
-                  {item.showPhoneNumber ? (
-                    <Pressable
-                      className="flex-1 bg-[#2C2C2E] py-3.5 rounded-2xl items-center flex-row justify-center space-x-2"
-                      onPress={() => copyToClipboard(item.phoneNumber, 'شماره تماس')}
-                    >
-                      <Feather name="phone" size={16} color="#FFFFFF" />
-                      <Text className="text-white font-bold">{item.phoneNumber}</Text>
-                    </Pressable>
-                  ) : (
-                    <View className="flex-1 bg-[#2C2C2E]/50 py-3.5 rounded-2xl items-center flex-row justify-center space-x-2">
-                      <Feather name="phone-off" size={16} color="#8E8E93" />
-                      <Text className="text-[#8E8E93] text-sm font-medium">مخفی</Text>
-                    </View>
-                  )}
+                <View className="flex-1">
+                  <Text className="text-xl font-bold mb-1" style={{ color: COLORS.text }}>{item.name}</Text>
+                  <Text className="text-sm" style={{ color: COLORS.muted }} numberOfLines={1}>{item.bio || 'بدون بیوگرافی'}</Text>
                 </View>
               </View>
-            );
-          }}
+
+              <View className="flex-row gap-3">
+                {item.contactId && (
+                  <TouchableOpacity className="flex-1 h-12 rounded-xl flex-row items-center justify-center gap-2" style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)' }} onPress={() => copy(item.contactId, 'آیدی')}>
+                    <Feather name="at-sign" size={16} color={COLORS.accent} />
+                    <Text style={{ color: COLORS.accent }} className="font-bold text-sm">{item.contactId}</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity className="flex-1 h-12 rounded-xl flex-row items-center justify-center gap-2" style={{ backgroundColor: item.showPhoneNumber ? '#27272A' : 'transparent', borderWidth: item.showPhoneNumber ? 0 : 1, borderColor: COLORS.border }} onPress={() => item.showPhoneNumber && copy(item.phoneNumber, 'شماره')}>
+                  <Feather name={item.showPhoneNumber ? "phone" : "phone-off"} size={16} color={item.showPhoneNumber ? COLORS.text : COLORS.muted} />
+                  <Text style={{ color: item.showPhoneNumber ? COLORS.text : COLORS.muted }} className="font-bold text-sm">{item.showPhoneNumber ? item.phoneNumber : 'مخفی'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         />
       )}
     </View>
