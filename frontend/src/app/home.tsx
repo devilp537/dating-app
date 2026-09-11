@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Pressable, Platform, Modal, Clipboard } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Pressable, Platform, Modal, Clipboard, FlatList } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { 
   useSharedValue, 
@@ -22,6 +22,13 @@ import * as Haptics from 'expo-haptics';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 const EMOJIS = ['👽', '👻', '🤖', '👾', '🤡', '🤠', '😎', '🤓', '🦊', '🐱'];
+
+const PROVINCES = [
+  'آذربایجان شرقی', 'آذربایجان غربی', 'اردبیل', 'اصفهان', 'البرز', 'ایلام', 'بوشهر', 'تهران', 
+  'چهارمحال و بختیاری', 'خراسان جنوبی', 'خراسان رضوی', 'خراسان شمالی', 'خوزستان', 'زنجان', 
+  'سمنان', 'سیستان و بلوچستان', 'فارس', 'قزوین', 'قم', 'کردستان', 'کرمان', 'کرمانشاه', 
+  'کهگیلویه و بویراحمد', 'گلستان', 'گیلان', 'لرستان', 'مازندران', 'مرکزی', 'هرمزگان', 'همدان', 'یزد'
+];
 
 const CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.75, 300);
 const CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.52, 380);
@@ -48,22 +55,9 @@ const triggerHaptic = (type: 'light' | 'medium' | 'success') => {
   else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 };
 
-// کامپوننت پاپ‌آپ تمام‌صفحه Match Modal
-const MatchModal = ({ 
-  visible, 
-  matchedUser, 
-  onClose, 
-  onGoToChat 
-}: { 
-  visible: boolean; 
-  matchedUser: User | null; 
-  onClose: () => void; 
-  onGoToChat: () => void; 
-}) => {
+const MatchModal = ({ visible, matchedUser, onClose, onGoToChat }: any) => {
   const [copied, setCopied] = useState(false);
-
   if (!visible || !matchedUser) return null;
-
   const targetEmoji = EMOJIS[matchedUser.id.charCodeAt(0) % EMOJIS.length];
 
   const handleCopy = () => {
@@ -78,64 +72,27 @@ const MatchModal = ({
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <View className="flex-1 bg-black/90 items-center justify-center px-6">
-        <Animated.View 
-          entering={ZoomIn.duration(350)}
-          className="w-full max-w-[340px] items-center rounded-[36px] p-8 border"
-          style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}
-        >
-          {/* بج عنوان */}
+        <Animated.View entering={ZoomIn.duration(350)} className="w-full max-w-[340px] items-center rounded-[36px] p-8 border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
           <View className="px-4 py-1.5 rounded-full mb-6 border" style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', borderColor: COLORS.accentSoft }}>
-            <Text className="text-xs font-bold tracking-widest uppercase" style={{ color: COLORS.accentSoft }}>
-              IT'S A MATCH!
-            </Text>
+            <Text className="text-xs font-bold tracking-widest uppercase" style={{ color: COLORS.accentSoft }}>IT'S A MATCH!</Text>
           </View>
-
-          {/* آواتارهای متقاطع */}
           <View className="flex-row items-center justify-center mb-6">
-            <View className="w-20 h-20 rounded-full items-center justify-center border-2 z-10 -mr-3" style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.accentSoft }}>
-              <Text className="text-3xl">✨</Text>
-            </View>
-            <View className="w-20 h-20 rounded-full items-center justify-center border-2 z-0" style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.accent }}>
-              <Text className="text-3xl">{targetEmoji}</Text>
-            </View>
+            <View className="w-20 h-20 rounded-full items-center justify-center border-2 z-10 -mr-3" style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.accentSoft }}><Text className="text-3xl">✨</Text></View>
+            <View className="w-20 h-20 rounded-full items-center justify-center border-2 z-0" style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.accent }}><Text className="text-3xl">{targetEmoji}</Text></View>
           </View>
-
-          <Text className="text-2xl font-extrabold text-center mb-2" style={{ color: COLORS.text }}>
-            شما و {matchedUser.name}
-          </Text>
-          <Text className="text-sm text-center mb-6 px-2" style={{ color: COLORS.textMuted }}>
-            هر دو به یکدیگر ابراز علاقه کردید! اکنون می‌توانید با هم در ارتباط باشید.
-          </Text>
-
-          {/* بخش کپی آیدی ارتباطی */}
+          <Text className="text-2xl font-extrabold text-center mb-2" style={{ color: COLORS.text }}>شما و {matchedUser.name}</Text>
+          <Text className="text-sm text-center mb-6 px-2" style={{ color: COLORS.textMuted }}>هر دو به یکدیگر ابراز علاقه کردید! اکنون می‌توانید با هم در ارتباط باشید.</Text>
           {matchedUser.contactId && (
-            <TouchableOpacity 
-              onPress={handleCopy}
-              className="w-full h-12 rounded-xl flex-row items-center justify-center gap-2 mb-3 border"
-              style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.border }}
-            >
+            <TouchableOpacity onPress={handleCopy} className="w-full h-12 rounded-xl flex-row items-center justify-center gap-2 mb-3 border" style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.border }}>
               <Feather name={copied ? "check" : "copy"} size={16} color={copied ? '#10B981' : COLORS.accentSoft} />
-              <Text style={{ color: copied ? '#10B981' : COLORS.text }} className="font-bold text-sm">
-                {copied ? 'آیدی کپی شد!' : `کپی آیدی: ${matchedUser.contactId}`}
-              </Text>
+              <Text style={{ color: copied ? '#10B981' : COLORS.text }} className="font-bold text-sm">{copied ? 'آیدی کپی شد!' : `کپی آیدی: ${matchedUser.contactId}`}</Text>
             </TouchableOpacity>
           )}
-
-          {/* دکمه انتقال مستقیم به صفحه چت / مچ‌ها */}
-          <TouchableOpacity 
-            className="w-full h-14 rounded-2xl items-center justify-center flex-row gap-2 mb-3"
-            style={{ backgroundColor: COLORS.accent }}
-            onPress={onGoToChat}
-          >
+          <TouchableOpacity className="w-full h-14 rounded-2xl items-center justify-center flex-row gap-2 mb-3" style={{ backgroundColor: COLORS.accent }} onPress={onGoToChat}>
             <Feather name="message-circle" size={20} color="#FFFFFF" />
             <Text className="text-white font-bold text-base">رفتن به بخش مکالمات</Text>
           </TouchableOpacity>
-
-          {/* بستن مودال و ادامه مرور افراد */}
-          <TouchableOpacity 
-            className="w-full h-11 rounded-2xl items-center justify-center"
-            onPress={onClose}
-          >
+          <TouchableOpacity className="w-full h-11 rounded-2xl items-center justify-center" onPress={onClose}>
             <Text className="font-semibold text-sm" style={{ color: COLORS.textMuted }}>ادامه مرور افراد</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -154,30 +111,9 @@ const ActionButton = ({ icon, color, onPress, isLarge = false, disabled = false 
       disabled={disabled}
       onPressIn={() => { if (!disabled) scale.value = withSpring(0.92); }}
       onPressOut={() => { if (!disabled) scale.value = withSpring(1); }}
-      onPress={() => {
-        if (!disabled) {
-          triggerHaptic('light');
-          onPress();
-        }
-      }}
+      onPress={() => { if (!disabled) { triggerHaptic('light'); onPress(); } }}
     >
-      <Animated.View 
-        style={[
-          animatedStyle, 
-          { 
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            backgroundColor: COLORS.surface, 
-            borderWidth: 1, 
-            borderColor: COLORS.border,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: disabled ? 0.4 : 1,
-            elevation: disabled ? 0 : 8 
-          }
-        ]}
-      >
+      <Animated.View style={[animatedStyle, { width: size, height: size, borderRadius: size / 2, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.4 : 1, elevation: disabled ? 0 : 8 }]}>
         {icon}
       </Animated.View>
     </Pressable>
@@ -186,70 +122,21 @@ const ActionButton = ({ icon, color, onPress, isLarge = false, disabled = false 
 
 const BackgroundCard = ({ user, dragX }: { user: User; dragX: SharedValue<number> }) => {
   const userEmoji = EMOJIS[user.id.charCodeAt(0) % EMOJIS.length];
-
   const animatedStyle = useAnimatedStyle(() => {
-    const scale = interpolate(
-      Math.abs(dragX.value),
-      [0, SWIPE_THRESHOLD],
-      [0.92, 1],
-      Extrapolation.CLAMP
-    );
-    const translateY = interpolate(
-      Math.abs(dragX.value),
-      [0, SWIPE_THRESHOLD],
-      [14, 0],
-      Extrapolation.CLAMP
-    );
-    const opacity = interpolate(
-      Math.abs(dragX.value),
-      [0, SWIPE_THRESHOLD],
-      [0.65, 1],
-      Extrapolation.CLAMP
-    );
-
-    return {
-      transform: [{ scale }, { translateY }],
-      opacity,
-    };
+    const scale = interpolate(Math.abs(dragX.value), [0, SWIPE_THRESHOLD], [0.92, 1], Extrapolation.CLAMP);
+    const translateY = interpolate(Math.abs(dragX.value), [0, SWIPE_THRESHOLD], [14, 0], Extrapolation.CLAMP);
+    const opacity = interpolate(Math.abs(dragX.value), [0, SWIPE_THRESHOLD], [0.65, 1], Extrapolation.CLAMP);
+    return { transform: [{ scale }, { translateY }], opacity };
   });
 
   return (
     <Animated.View style={[animatedStyle, { position: 'absolute', zIndex: 0, width: '100%', alignItems: 'center' }]}>
-      <View 
-        style={{ 
-          width: CARD_WIDTH, 
-          height: CARD_HEIGHT, 
-          backgroundColor: COLORS.surface, 
-          borderWidth: 1, 
-          borderColor: COLORS.border,
-          borderRadius: 36,
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingHorizontal: 20,
-          paddingVertical: 16
-        }}
-      >
-        <View 
-          style={{ 
-            width: 88, 
-            height: 88, 
-            borderRadius: 44, 
-            backgroundColor: COLORS.surfaceAlt, 
-            borderWidth: 1, 
-            borderColor: COLORS.border,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 16
-          }}
-        >
+      <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 16 }}>
+        <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
           <Text style={{ fontSize: 44 }}>{userEmoji}</Text>
         </View>
-        <Text style={{ color: COLORS.text, fontSize: 22, fontWeight: '800', marginBottom: 6, textAlign: 'center' }}>
-          {user.name}
-        </Text>
-        <Text style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center' }} numberOfLines={3}>
-          {user.bio || 'بدون بیوگرافی'}
-        </Text>
+        <Text style={{ color: COLORS.text, fontSize: 22, fontWeight: '800', marginBottom: 6, textAlign: 'center' }}>{user.name}</Text>
+        <Text style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center' }} numberOfLines={3}>{user.bio || 'بدون بیوگرافی'}</Text>
       </View>
     </Animated.View>
   );
@@ -269,20 +156,16 @@ const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection, dragX }: any)
   }, [externalSwipeDirection]);
 
   const panGesture = Gesture.Pan()
-    .onUpdate((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
-    })
+    .onUpdate((event) => { translateX.value = event.translationX; translateY.value = event.translationY; })
     .onEnd((event) => {
       const isSwipedRight = event.translationX > SWIPE_THRESHOLD;
       const isSwipedLeft = event.translationX < -SWIPE_THRESHOLD;
 
       if (isSwipedRight || isSwipedLeft) {
         runOnJS(triggerHaptic)('medium');
-        const swipeType = isSwipedRight ? 'LIKE' : 'PASS';
         translateX.value = withSpring(Math.sign(event.translationX) * 500, { velocity: event.velocityX });
         translateY.value = withSpring(event.translationY, { velocity: event.velocityY });
-        runOnJS(onSwipeOut)(swipeType);
+        runOnJS(onSwipeOut)(isSwipedRight ? 'LIKE' : 'PASS');
       } else {
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
@@ -291,50 +174,18 @@ const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection, dragX }: any)
 
   const animatedStyle = useAnimatedStyle(() => {
     const rotate = interpolate(translateX.value, [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2], [-8, 0, 8], Extrapolation.CLAMP);
-    return {
-      transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { rotate: `${rotate}deg` }],
-    };
+    return { transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { rotate: `${rotate}deg` }] };
   });
 
   return (
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[animatedStyle, { position: 'absolute', zIndex: 1, width: '100%', alignItems: 'center' }]}>
-        <View 
-          style={{ 
-            width: CARD_WIDTH, 
-            height: CARD_HEIGHT, 
-            backgroundColor: COLORS.surface, 
-            borderWidth: 1, 
-            borderColor: COLORS.border,
-            borderRadius: 36,
-            elevation: 12,
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 20,
-            paddingVertical: 16
-          }}
-        >
-          <View 
-            style={{ 
-              width: 88, 
-              height: 88, 
-              borderRadius: 44, 
-              backgroundColor: COLORS.surfaceAlt, 
-              borderWidth: 1, 
-              borderColor: COLORS.border,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 16
-            }}
-          >
+        <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 36, elevation: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 16 }}>
+          <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
             <Text style={{ fontSize: 44 }}>{userEmoji}</Text>
           </View>
-          <Text style={{ color: COLORS.text, fontSize: 22, fontWeight: '800', marginBottom: 6, textAlign: 'center' }}>
-            {user.name}
-          </Text>
-          <Text style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center' }} numberOfLines={3}>
-            {user.bio || 'بدون بیوگرافی'}
-          </Text>
+          <Text style={{ color: COLORS.text, fontSize: 22, fontWeight: '800', marginBottom: 6, textAlign: 'center' }}>{user.name}</Text>
+          <Text style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center' }} numberOfLines={3}>{user.bio || 'بدون بیوگرافی'}</Text>
         </View>
       </Animated.View>
     </GestureDetector>
@@ -350,24 +201,56 @@ export default function HomeScreen() {
   const [matchModalVisible, setMatchModalVisible] = useState(false);
   const [matchedUser, setMatchedUser] = useState<User | null>(null);
 
+  // فیلتر جستجو
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+
+  // تغییر استان خود کاربر (پروفایل خودش)
+  const [myProvinceModalVisible, setMyProvinceModalVisible] = useState(false);
+  const [myCurrentProvince, setMyCurrentProvince] = useState<string | null>(null);
+
   const dragX = useSharedValue(0);
 
-  const fetchDiscoveryUsers = async () => {
+  const fetchDiscoveryUsers = async (provinceFilter: string | null = selectedProvince) => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
-      if (!token) return router.replace('/');
-      const response = await apiClient.get('/users/discovery', { headers: { Authorization: `Bearer ${token}` } });
+      if (!token) {
+        router.replace('/');
+        return;
+      }
+      
+      const response = await apiClient.get('/users/discovery', { 
+        headers: { Authorization: `Bearer ${token}` },
+        params: provinceFilter ? { province: provinceFilter } : {}
+      });
+      
       setUsers(response.data);
       setHistory([]);
-    } catch (error) {
-      console.error('Fetch discovery error:', error);
+    } catch (error: any) {
+      await AsyncStorage.multiRemove(['userToken', 'discoveryProvince']);
+      router.replace('/');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchDiscoveryUsers(); }, []);
+  useEffect(() => {
+    const loadSavedData = async () => {
+      try {
+        const savedProvince = await AsyncStorage.getItem('discoveryProvince');
+        if (savedProvince) {
+          setSelectedProvince(savedProvince);
+          fetchDiscoveryUsers(savedProvince);
+        } else {
+          fetchDiscoveryUsers(null);
+        }
+      } catch (e) {
+        fetchDiscoveryUsers(null);
+      }
+    };
+    loadSavedData();
+  }, []);
 
   const handleSwipeOut = async (type: 'LIKE' | 'PASS') => {
     if (users.length === 0) return;
@@ -380,18 +263,14 @@ export default function HomeScreen() {
 
     try {
       const token = await AsyncStorage.getItem('userToken');
-      const response = await apiClient.post(
-        '/users/swipe',
-        { targetId: swipedUser.id, type },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await apiClient.post('/users/swipe', { targetId: swipedUser.id, type }, { headers: { Authorization: `Bearer ${token}` } });
       if (response.data?.isMatch) {
         triggerHaptic('success');
         setMatchedUser(swipedUser);
         setMatchModalVisible(true);
       }
     } catch (error: any) {
-      console.error('Swipe API Error:', error.response?.data || error.message);
+      console.error('Swipe Error');
     }
   };
 
@@ -403,6 +282,41 @@ export default function HomeScreen() {
     setUsers((prev) => [lastUser, ...prev]);
   };
 
+  const applyProvinceFilter = async (province: string | null) => {
+    setSelectedProvince(province);
+    setFilterModalVisible(false);
+    try {
+      if (province) {
+        await AsyncStorage.setItem('discoveryProvince', province);
+      } else {
+        await AsyncStorage.removeItem('discoveryProvince');
+      }
+    } catch (e) {}
+    fetchDiscoveryUsers(province);
+  };
+
+  // تابع برای ثبت استان جدید خود کاربر در پروفایلش
+  const updateMyProvince = async (newProvince: string) => {
+    setMyCurrentProvince(newProvince);
+    setMyProvinceModalVisible(false);
+    triggerHaptic('success');
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      await apiClient.put('/users/profile', { province: newProvince }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // بعد از تغییر استان خودم، لیست دیسکاوری را هم رفرش می‌کنیم تا بر اساس محل جدید باشد
+      fetchDiscoveryUsers(selectedProvince);
+    } catch (error) {
+      console.error('Update my province error:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.multiRemove(['userToken', 'discoveryProvince']);
+    router.replace('/');
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={{ flex: 1, paddingTop: 36, paddingBottom: 24, justifyContent: 'space-between' }}>
@@ -410,11 +324,22 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 28, height: 44 }}>
           <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: '800', letterSpacing: 2 }}>DISCOVER</Text>
-          <View style={{ flexDirection: 'row', gap: 20 }}>
-            <TouchableOpacity onPress={() => router.push('/matches')}>
+          <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+            {/* دکمه تغییر استان خودم (محل سکونت) */}
+            <TouchableOpacity onPress={() => setMyProvinceModalVisible(true)} className="p-1">
+              <Feather name="map-pin" size={22} color={COLORS.accentSoft} />
+            </TouchableOpacity>
+
+            {/* دکمه فیلتر جستجوی کاربران */}
+            <TouchableOpacity onPress={() => setFilterModalVisible(true)} className="p-1">
+              <Feather name="sliders" size={22} color={selectedProvince ? COLORS.accentSoft : COLORS.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => router.push('/matches')} className="p-1">
               <Feather name="message-circle" size={24} color={COLORS.accentSoft} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => AsyncStorage.removeItem('userToken').then(() => router.replace('/'))}>
+
+            <TouchableOpacity onPress={handleLogout} className="p-1">
               <Feather name="log-out" size={24} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
@@ -428,49 +353,17 @@ export default function HomeScreen() {
             </View>
           ) : users.length > 0 ? (
             <View style={{ width: '100%', height: CARD_HEIGHT, alignItems: 'center', justifyContent: 'center' }}>
-              {users.length > 1 && (
-                <BackgroundCard user={users[1]} dragX={dragX} />
-              )}
-              <SwipeableCard 
-                key={users[0].id} 
-                user={users[0]} 
-                dragX={dragX}
-                externalSwipeDirection={externalDirection}
-                onSwipeOut={(type: 'LIKE' | 'PASS') => handleSwipeOut(type)} 
-              />
+              {users.length > 1 && <BackgroundCard user={users[1]} dragX={dragX} />}
+              <SwipeableCard key={users[0].id} user={users[0]} dragX={dragX} externalSwipeDirection={externalDirection} onSwipeOut={(type: 'LIKE' | 'PASS') => handleSwipeOut(type)} />
             </View>
           ) : (
-            <Animated.View 
-              entering={FadeIn.duration(400)}
-              style={{ 
-                width: CARD_WIDTH, 
-                height: CARD_HEIGHT, 
-                borderRadius: 36,
-                backgroundColor: COLORS.surface, 
-                borderWidth: 1, 
-                borderColor: COLORS.border,
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 24
-              }}
-            >
+            <Animated.View entering={FadeIn.duration(400)} style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: 36, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
               <Feather name="inbox" size={40} color={COLORS.textMuted} style={{ marginBottom: 12 }} />
-              <Text style={{ color: COLORS.textMuted, fontSize: 15, fontWeight: '500', marginBottom: 18 }}>کاربری یافت نشد</Text>
+              <Text style={{ color: COLORS.textMuted, fontSize: 15, fontWeight: '500', marginBottom: 18, textAlign: 'center' }}>
+                {selectedProvince ? `کسی در ${selectedProvince} یافت نشد` : 'کاربری یافت نشد'}
+              </Text>
               
-              <TouchableOpacity 
-                onPress={fetchDiscoveryUsers}
-                style={{ 
-                  flexDirection: 'row', 
-                  alignItems: 'center', 
-                  gap: 8, 
-                  paddingHorizontal: 18, 
-                  paddingVertical: 10, 
-                  borderRadius: 14, 
-                  backgroundColor: COLORS.surfaceAlt, 
-                  borderWidth: 1, 
-                  borderColor: COLORS.border 
-                }}
-              >
+              <TouchableOpacity onPress={() => fetchDiscoveryUsers()} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border }}>
                 <Feather name="refresh-cw" size={15} color={COLORS.accentSoft} />
                 <Text style={{ color: COLORS.accentSoft, fontWeight: '700', fontSize: 13 }}>تلاش مجدد</Text>
               </TouchableOpacity>
@@ -482,41 +375,90 @@ export default function HomeScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 20, height: 72 }}>
           {!loading && (
             <>
-              <ActionButton 
-                icon={<MaterialCommunityIcons name="undo-variant" size={22} color={COLORS.rewind} />} 
-                color={COLORS.rewind}
-                disabled={history.length === 0}
-                onPress={handleRewind} 
-              />
+              <ActionButton icon={<MaterialCommunityIcons name="undo-variant" size={22} color={COLORS.rewind} />} color={COLORS.rewind} disabled={history.length === 0} onPress={handleRewind} />
               {users.length > 0 && (
                 <>
-                  <ActionButton 
-                    icon={<Feather name="x" size={26} color={COLORS.pass} />} 
-                    color={COLORS.pass}
-                    onPress={() => setExternalDirection('PASS')} 
-                  />
-                  <ActionButton 
-                    icon={<AntDesign name="heart" size={28} color={COLORS.accentSoft} />} 
-                    color={COLORS.accent}
-                    isLarge
-                    onPress={() => setExternalDirection('LIKE')} 
-                  />
+                  <ActionButton icon={<Feather name="x" size={26} color={COLORS.pass} />} color={COLORS.pass} onPress={() => setExternalDirection('PASS')} />
+                  <ActionButton icon={<AntDesign name="heart" size={28} color={COLORS.accentSoft} />} color={COLORS.accent} isLarge onPress={() => setExternalDirection('LIKE')} />
                 </>
               )}
             </>
           )}
         </View>
 
-        {/* Modal اختصاصی مچ */}
-        <MatchModal 
-          visible={matchModalVisible}
-          matchedUser={matchedUser}
-          onClose={() => setMatchModalVisible(false)}
-          onGoToChat={() => {
-            setMatchModalVisible(false);
-            router.push('/matches');
-          }}
-        />
+        <MatchModal visible={matchModalVisible} matchedUser={matchedUser} onClose={() => setMatchModalVisible(false)} onGoToChat={() => { setMatchModalVisible(false); router.push('/matches'); }} />
+
+        {/* مودال تغییر استان خودم (محل سکونت کاربر) */}
+        <Modal visible={myProvinceModalVisible} animationType="slide" transparent>
+          <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+            <View className="rounded-t-[32px] pt-4 pb-8 px-2 h-2/3" style={{ backgroundColor: COLORS.surface }}>
+              <View className="flex-row justify-between items-center px-6 mb-4">
+                <Text className="text-lg font-bold" style={{ color: COLORS.text }}>انتخاب استان محل سکونت من</Text>
+                <TouchableOpacity onPress={() => setMyProvinceModalVisible(false)} className="p-2">
+                  <Feather name="x" size={24} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <FlatList
+                data={PROVINCES}
+                keyExtractor={(item) => item}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    className="px-6 py-4 border-b" 
+                    style={{ borderBottomColor: COLORS.border }}
+                    onPress={() => updateMyProvince(item)}
+                  >
+                    <Text className="text-base" style={{ color: myCurrentProvince === item ? COLORS.accentSoft : COLORS.text }}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </View>
+        </Modal>
+
+        {/* مودال فیلتر استان جستجو */}
+        <Modal visible={filterModalVisible} animationType="slide" transparent>
+          <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+            <View className="rounded-t-[32px] pt-4 pb-8 px-2 h-2/3" style={{ backgroundColor: COLORS.surface }}>
+              <View className="flex-row justify-between items-center px-6 mb-4">
+                <Text className="text-lg font-bold" style={{ color: COLORS.text }}>فیلتر جستجوی کاربران (استان)</Text>
+                <TouchableOpacity onPress={() => setFilterModalVisible(false)} className="p-2">
+                  <Feather name="x" size={24} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity 
+                className="px-6 py-4 border-b" 
+                style={{ borderBottomColor: COLORS.border }}
+                onPress={() => applyProvinceFilter(null)}
+              >
+                <Text className="text-base font-bold" style={{ color: !selectedProvince ? COLORS.accentSoft : COLORS.text }}>
+                  🌐 همه استان‌ها (بدون فیلتر)
+                </Text>
+              </TouchableOpacity>
+
+              <FlatList
+                data={PROVINCES}
+                keyExtractor={(item) => item}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    className="px-6 py-4 border-b" 
+                    style={{ borderBottomColor: COLORS.border }}
+                    onPress={() => applyProvinceFilter(item)}
+                  >
+                    <Text className="text-base" style={{ color: selectedProvince === item ? COLORS.accentSoft : COLORS.text }}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </View>
+        </Modal>
 
       </View>
     </GestureHandlerRootView>
