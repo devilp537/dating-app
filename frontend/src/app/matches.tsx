@@ -5,7 +5,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../api/client';
 import { Feather } from '@expo/vector-icons';
 
-const COLORS = { bg: '#09090B', surface: '#18181B', border: '#27272A', accent: '#8B5CF6', text: '#FAFAFA', muted: '#A1A1AA' };
+const COLORS = { 
+  bg: '#000000', 
+  surface: '#111018', 
+  surfaceAlt: '#181622', 
+  border: 'rgba(167,139,250,0.18)', 
+  accent: '#8B5CF6', 
+  accentSoft: '#A78BFA', 
+  text: '#F5F3FF', 
+  textMuted: '#8B879A' 
+};
+
 const EMOJIS = ['👽', '👻', '🤖', '👾', '🤡', '😎', '🤓', '🦊'];
 
 export default function MatchesScreen() {
@@ -19,22 +29,29 @@ export default function MatchesScreen() {
       if (!token) return router.replace('/');
       const res = await apiClient.get('/chat/matches', { headers: { Authorization: `Bearer ${token}` } });
       setMatches(res.data.slice(0, 10));
-    } catch {} finally { setLoading(false); }
+    } catch {
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => {
     fetchMatches();
   }, []);
 
-  const copy = (t: string, type: string) => { Clipboard.setString(t); Alert.alert('کپی شد', `${type} کپی شد.`); };
+  const copy = (t: string, type: string) => { 
+    Clipboard.setString(t); 
+    Alert.alert('کپی شد', `${type} در کلیپ‌بورد ذخیره شد.`); 
+  };
 
   return (
-    <View className="flex-1 px-5 pt-14 pb-8" style={{ backgroundColor: COLORS.bg }}>
+    <View className="flex-1 px-5 pt-12 pb-8" style={{ backgroundColor: COLORS.bg }}>
+      {/* Header */}
       <View className="flex-row justify-between items-center mb-6">
-        <Text className="text-2xl font-bold" style={{ color: COLORS.text }}>Matches</Text>
+        <Text className="text-2xl font-bold tracking-wider" style={{ color: COLORS.text }}>MATCHES</Text>
         <View className="flex-row gap-3">
           <TouchableOpacity onPress={fetchMatches} className="p-2.5 rounded-2xl border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
-            <Feather name="refresh-cw" size={20} color={COLORS.text} />
+            <Feather name="refresh-cw" size={18} color={COLORS.accentSoft} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => router.replace('/home')} className="p-2.5 rounded-2xl border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
             <Feather name="chevron-left" size={20} color={COLORS.text} />
@@ -43,7 +60,9 @@ export default function MatchesScreen() {
       </View>
 
       {loading ? (
-         <View className="flex-1 items-center justify-center"><ActivityIndicator color={COLORS.accent} size="large" /></View>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color={COLORS.accentSoft} size="large" />
+        </View>
       ) : (
         <FlatList
           data={matches}
@@ -51,36 +70,43 @@ export default function MatchesScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View className="items-center mt-20">
-              <Feather name="users" size={48} color={COLORS.muted} className="mb-4" />
-              <Text style={{ color: COLORS.muted }} className="mb-6">مچی ندارید</Text>
-              <TouchableOpacity className="px-6 py-3 rounded-2xl flex-row items-center gap-2" style={{ backgroundColor: COLORS.border }} onPress={fetchMatches}>
-                <Feather name="refresh-cw" size={16} color={COLORS.text} />
-                <Text style={{ color: COLORS.text }} className="font-bold">تلاش مجدد</Text>
+              <Feather name="users" size={44} color={COLORS.textMuted} className="mb-4" />
+              <Text style={{ color: COLORS.textMuted }} className="mb-6 text-base font-medium">مچی یافت نشد</Text>
+              <TouchableOpacity className="px-5 py-2.5 rounded-xl flex-row items-center gap-2 border" style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.border }} onPress={fetchMatches}>
+                <Feather name="refresh-cw" size={15} color={COLORS.accentSoft} />
+                <Text style={{ color: COLORS.accentSoft }} className="font-bold text-sm">تلاش مجدد</Text>
               </TouchableOpacity>
             </View>
           }
           renderItem={({ item }) => (
             <View className="p-5 rounded-[24px] mb-4 border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
               <View className="flex-row items-center mb-5">
-                <View className="w-14 h-14 rounded-full items-center justify-center mr-4" style={{ backgroundColor: '#27272A' }}>
+                <View className="w-14 h-14 rounded-full items-center justify-center mr-4" style={{ backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border }}>
                   <Text className="text-2xl">{EMOJIS[item.id.charCodeAt(0) % EMOJIS.length]}</Text>
                 </View>
                 <View className="flex-1">
                   <Text className="text-xl font-bold mb-1" style={{ color: COLORS.text }}>{item.name}</Text>
-                  <Text className="text-sm" style={{ color: COLORS.muted }} numberOfLines={1}>{item.bio || 'بدون بیوگرافی'}</Text>
+                  <Text className="text-sm" style={{ color: COLORS.textMuted }} numberOfLines={1}>{item.bio || 'بدون بیوگرافی'}</Text>
                 </View>
               </View>
 
               <View className="flex-row gap-3">
-                {item.contactId && (
-                  <TouchableOpacity className="flex-1 h-12 rounded-xl flex-row items-center justify-center gap-2" style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)' }} onPress={() => copy(item.contactId, 'آیدی')}>
-                    <Feather name="at-sign" size={16} color={COLORS.accent} />
-                    <Text style={{ color: COLORS.accent }} className="font-bold text-sm">{item.contactId}</Text>
+                {item.contactId ? (
+                  <TouchableOpacity className="flex-1 h-11 rounded-xl flex-row items-center justify-center gap-2 border" style={{ backgroundColor: 'rgba(139, 92, 246, 0.12)', borderColor: COLORS.border }} onPress={() => copy(item.contactId, 'آیدی')}>
+                    <Feather name="at-sign" size={15} color={COLORS.accentSoft} />
+                    <Text style={{ color: COLORS.accentSoft }} className="font-bold text-sm">{item.contactId}</Text>
                   </TouchableOpacity>
-                )}
-                <TouchableOpacity className="flex-1 h-12 rounded-xl flex-row items-center justify-center gap-2" style={{ backgroundColor: item.showPhoneNumber ? '#27272A' : 'transparent', borderWidth: item.showPhoneNumber ? 0 : 1, borderColor: COLORS.border }} onPress={() => item.showPhoneNumber && copy(item.phoneNumber, 'شماره')}>
-                  <Feather name={item.showPhoneNumber ? "phone" : "phone-off"} size={16} color={item.showPhoneNumber ? COLORS.text : COLORS.muted} />
-                  <Text style={{ color: item.showPhoneNumber ? COLORS.text : COLORS.muted }} className="font-bold text-sm">{item.showPhoneNumber ? item.phoneNumber : 'مخفی'}</Text>
+                ) : null}
+                
+                <TouchableOpacity 
+                  className="flex-1 h-11 rounded-xl flex-row items-center justify-center gap-2 border" 
+                  style={{ backgroundColor: item.showPhoneNumber ? COLORS.surfaceAlt : 'transparent', borderColor: COLORS.border }} 
+                  onPress={() => item.showPhoneNumber && copy(item.phoneNumber, 'شماره')}
+                >
+                  <Feather name={item.showPhoneNumber ? "phone" : "phone-off"} size={15} color={item.showPhoneNumber ? COLORS.text : COLORS.textMuted} />
+                  <Text style={{ color: item.showPhoneNumber ? COLORS.text : COLORS.textMuted }} className="font-bold text-sm">
+                    {item.showPhoneNumber ? item.phoneNumber : 'مخفی'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>

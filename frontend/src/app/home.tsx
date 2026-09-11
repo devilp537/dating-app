@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Alert, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Pressable, Platform, Modal, Clipboard } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { 
   useSharedValue, 
@@ -9,18 +9,20 @@ import Animated, {
   interpolate, 
   Extrapolation,
   withTiming,
-  FadeIn
+  FadeIn,
+  ZoomIn,
+  type SharedValue
 } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { apiClient } from '../api/client';
-import { AntDesign, Feather } from '@expo/vector-icons';
+import { AntDesign, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 const EMOJIS = ['👽', '👻', '🤖', '👾', '🤡', '🤠', '😎', '🤓', '🦊', '🐱'];
 
-// تنظیم ابعاد دقیق متناسب با صفحه حتی در صفحه‌نمایش‌های کوچک (ارتفاع 520px)
 const CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.75, 300);
 const CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.52, 380);
 
@@ -34,21 +36,130 @@ const COLORS = {
   text: '#F5F3FF',
   textMuted: '#8B879A',
   pass: '#FB7185',
-  like: '#22C55E',
+  rewind: '#FBBF24',
 };
 
-type User = { id: string; name: string; bio: string; };
+type User = { id: string; name: string; bio: string; contactId?: string };
 
-const ActionButton = ({ icon, color, onPress, isLarge = false }: any) => {
+const triggerHaptic = (type: 'light' | 'medium' | 'success') => {
+  if (Platform.OS === 'web') return;
+  if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+};
+
+// کامپوننت پاپ‌آپ تمام‌صفحه Match Modal
+const MatchModal = ({ 
+  visible, 
+  matchedUser, 
+  onClose, 
+  onGoToChat 
+}: { 
+  visible: boolean; 
+  matchedUser: User | null; 
+  onClose: () => void; 
+  onGoToChat: () => void; 
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  if (!visible || !matchedUser) return null;
+
+  const targetEmoji = EMOJIS[matchedUser.id.charCodeAt(0) % EMOJIS.length];
+
+  const handleCopy = () => {
+    if (matchedUser.contactId) {
+      Clipboard.setString(matchedUser.contactId);
+      triggerHaptic('success');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+      <View className="flex-1 bg-black/90 items-center justify-center px-6">
+        <Animated.View 
+          entering={ZoomIn.duration(350)}
+          className="w-full max-w-[340px] items-center rounded-[36px] p-8 border"
+          style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}
+        >
+          {/* بج عنوان */}
+          <View className="px-4 py-1.5 rounded-full mb-6 border" style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', borderColor: COLORS.accentSoft }}>
+            <Text className="text-xs font-bold tracking-widest uppercase" style={{ color: COLORS.accentSoft }}>
+              IT'S A MATCH!
+            </Text>
+          </View>
+
+          {/* آواتارهای متقاطع */}
+          <View className="flex-row items-center justify-center mb-6">
+            <View className="w-20 h-20 rounded-full items-center justify-center border-2 z-10 -mr-3" style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.accentSoft }}>
+              <Text className="text-3xl">✨</Text>
+            </View>
+            <View className="w-20 h-20 rounded-full items-center justify-center border-2 z-0" style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.accent }}>
+              <Text className="text-3xl">{targetEmoji}</Text>
+            </View>
+          </View>
+
+          <Text className="text-2xl font-extrabold text-center mb-2" style={{ color: COLORS.text }}>
+            شما و {matchedUser.name}
+          </Text>
+          <Text className="text-sm text-center mb-6 px-2" style={{ color: COLORS.textMuted }}>
+            هر دو به یکدیگر ابراز علاقه کردید! اکنون می‌توانید با هم در ارتباط باشید.
+          </Text>
+
+          {/* بخش کپی آیدی ارتباطی */}
+          {matchedUser.contactId && (
+            <TouchableOpacity 
+              onPress={handleCopy}
+              className="w-full h-12 rounded-xl flex-row items-center justify-center gap-2 mb-3 border"
+              style={{ backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.border }}
+            >
+              <Feather name={copied ? "check" : "copy"} size={16} color={copied ? '#10B981' : COLORS.accentSoft} />
+              <Text style={{ color: copied ? '#10B981' : COLORS.text }} className="font-bold text-sm">
+                {copied ? 'آیدی کپی شد!' : `کپی آیدی: ${matchedUser.contactId}`}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* دکمه انتقال مستقیم به صفحه چت / مچ‌ها */}
+          <TouchableOpacity 
+            className="w-full h-14 rounded-2xl items-center justify-center flex-row gap-2 mb-3"
+            style={{ backgroundColor: COLORS.accent }}
+            onPress={onGoToChat}
+          >
+            <Feather name="message-circle" size={20} color="#FFFFFF" />
+            <Text className="text-white font-bold text-base">رفتن به بخش مکالمات</Text>
+          </TouchableOpacity>
+
+          {/* بستن مودال و ادامه مرور افراد */}
+          <TouchableOpacity 
+            className="w-full h-11 rounded-2xl items-center justify-center"
+            onPress={onClose}
+          >
+            <Text className="font-semibold text-sm" style={{ color: COLORS.textMuted }}>ادامه مرور افراد</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+const ActionButton = ({ icon, color, onPress, isLarge = false, disabled = false }: any) => {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const size = isLarge ? 64 : 54;
+  const size = isLarge ? 64 : 50;
 
   return (
     <Pressable
-      onPressIn={() => (scale.value = withSpring(0.92))}
-      onPressOut={() => (scale.value = withSpring(1))}
-      onPress={onPress}
+      disabled={disabled}
+      onPressIn={() => { if (!disabled) scale.value = withSpring(0.92); }}
+      onPressOut={() => { if (!disabled) scale.value = withSpring(1); }}
+      onPress={() => {
+        if (!disabled) {
+          triggerHaptic('light');
+          onPress();
+        }
+      }}
     >
       <Animated.View 
         style={[
@@ -62,10 +173,8 @@ const ActionButton = ({ icon, color, onPress, isLarge = false }: any) => {
             borderColor: COLORS.border,
             alignItems: 'center',
             justifyContent: 'center',
-            shadowColor: color, 
-            shadowOpacity: 0.25, 
-            shadowRadius: 14, 
-            elevation: 8 
+            opacity: disabled ? 0.4 : 1,
+            elevation: disabled ? 0 : 8 
           }
         ]}
       >
@@ -75,8 +184,79 @@ const ActionButton = ({ icon, color, onPress, isLarge = false }: any) => {
   );
 };
 
-const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection }: any) => {
-  const translateX = useSharedValue(0);
+const BackgroundCard = ({ user, dragX }: { user: User; dragX: SharedValue<number> }) => {
+  const userEmoji = EMOJIS[user.id.charCodeAt(0) % EMOJIS.length];
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      Math.abs(dragX.value),
+      [0, SWIPE_THRESHOLD],
+      [0.92, 1],
+      Extrapolation.CLAMP
+    );
+    const translateY = interpolate(
+      Math.abs(dragX.value),
+      [0, SWIPE_THRESHOLD],
+      [14, 0],
+      Extrapolation.CLAMP
+    );
+    const opacity = interpolate(
+      Math.abs(dragX.value),
+      [0, SWIPE_THRESHOLD],
+      [0.65, 1],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      transform: [{ scale }, { translateY }],
+      opacity,
+    };
+  });
+
+  return (
+    <Animated.View style={[animatedStyle, { position: 'absolute', zIndex: 0, width: '100%', alignItems: 'center' }]}>
+      <View 
+        style={{ 
+          width: CARD_WIDTH, 
+          height: CARD_HEIGHT, 
+          backgroundColor: COLORS.surface, 
+          borderWidth: 1, 
+          borderColor: COLORS.border,
+          borderRadius: 36,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 20,
+          paddingVertical: 16
+        }}
+      >
+        <View 
+          style={{ 
+            width: 88, 
+            height: 88, 
+            borderRadius: 44, 
+            backgroundColor: COLORS.surfaceAlt, 
+            borderWidth: 1, 
+            borderColor: COLORS.border,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 16
+          }}
+        >
+          <Text style={{ fontSize: 44 }}>{userEmoji}</Text>
+        </View>
+        <Text style={{ color: COLORS.text, fontSize: 22, fontWeight: '800', marginBottom: 6, textAlign: 'center' }}>
+          {user.name}
+        </Text>
+        <Text style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 20, textAlign: 'center' }} numberOfLines={3}>
+          {user.bio || 'بدون بیوگرافی'}
+        </Text>
+      </View>
+    </Animated.View>
+  );
+};
+
+const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection, dragX }: any) => {
+  const translateX = dragX;
   const translateY = useSharedValue(0);
   const userEmoji = EMOJIS[user.id.charCodeAt(0) % EMOJIS.length];
 
@@ -98,6 +278,7 @@ const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection }: any) => {
       const isSwipedLeft = event.translationX < -SWIPE_THRESHOLD;
 
       if (isSwipedRight || isSwipedLeft) {
+        runOnJS(triggerHaptic)('medium');
         const swipeType = isSwipedRight ? 'LIKE' : 'PASS';
         translateX.value = withSpring(Math.sign(event.translationX) * 500, { velocity: event.velocityX });
         translateY.value = withSpring(event.translationY, { velocity: event.velocityY });
@@ -117,7 +298,7 @@ const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection }: any) => {
 
   return (
     <GestureDetector gesture={panGesture}>
-      <Animated.View style={[animatedStyle, { position: 'absolute', zIndex: 1 }]} className="w-full items-center">
+      <Animated.View style={[animatedStyle, { position: 'absolute', zIndex: 1, width: '100%', alignItems: 'center' }]}>
         <View 
           style={{ 
             width: CARD_WIDTH, 
@@ -126,9 +307,6 @@ const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection }: any) => {
             borderWidth: 1, 
             borderColor: COLORS.border,
             borderRadius: 36,
-            shadowColor: COLORS.accentSoft,
-            shadowOpacity: 0.2,
-            shadowRadius: 24,
             elevation: 12,
             alignItems: 'center',
             justifyContent: 'center',
@@ -165,8 +343,14 @@ const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection }: any) => {
 
 export default function HomeScreen() {
   const [users, setUsers] = useState<User[]>([]);
+  const [history, setHistory] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [externalDirection, setExternalDirection] = useState<'LIKE' | 'PASS' | null>(null);
+
+  const [matchModalVisible, setMatchModalVisible] = useState(false);
+  const [matchedUser, setMatchedUser] = useState<User | null>(null);
+
+  const dragX = useSharedValue(0);
 
   const fetchDiscoveryUsers = async () => {
     setLoading(true);
@@ -175,8 +359,9 @@ export default function HomeScreen() {
       if (!token) return router.replace('/');
       const response = await apiClient.get('/users/discovery', { headers: { Authorization: `Bearer ${token}` } });
       setUsers(response.data);
+      setHistory([]);
     } catch (error) {
-      console.error(error);
+      console.error('Fetch discovery error:', error);
     } finally {
       setLoading(false);
     }
@@ -184,16 +369,38 @@ export default function HomeScreen() {
 
   useEffect(() => { fetchDiscoveryUsers(); }, []);
 
-  const handleSwipeOut = async (targetId: string, type: 'LIKE' | 'PASS') => {
+  const handleSwipeOut = async (type: 'LIKE' | 'PASS') => {
+    if (users.length === 0) return;
+    const swipedUser = users[0];
+
+    setHistory((prev) => [swipedUser, ...prev]);
     setUsers((prev) => prev.slice(1));
     setExternalDirection(null);
+    dragX.value = 0;
+
     try {
       const token = await AsyncStorage.getItem('userToken');
-      const response = await apiClient.post('/users/swipe', { targetId, type }, { headers: { Authorization: `Bearer ${token}` } });
-      if (response.data.isMatch) Alert.alert('تبریک! 🎉', 'شما با هم مچ شدید!');
-    } catch (error) {
-      console.error(error);
+      const response = await apiClient.post(
+        '/users/swipe',
+        { targetId: swipedUser.id, type },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data?.isMatch) {
+        triggerHaptic('success');
+        setMatchedUser(swipedUser);
+        setMatchModalVisible(true);
+      }
+    } catch (error: any) {
+      console.error('Swipe API Error:', error.response?.data || error.message);
     }
+  };
+
+  const handleRewind = () => {
+    if (history.length === 0) return;
+    triggerHaptic('medium');
+    const lastUser = history[0];
+    setHistory((prev) => prev.slice(1));
+    setUsers((prev) => [lastUser, ...prev]);
   };
 
   return (
@@ -213,19 +420,25 @@ export default function HomeScreen() {
           </View>
         </View>
         
-        {/* Card Viewport Area */}
+        {/* Cards Viewport */}
         <View style={{ flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' }}>
           {loading ? (
-             <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: 36, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
-               <ActivityIndicator size="large" color={COLORS.accentSoft} />
-             </View>
+            <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: 36, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator size="large" color={COLORS.accentSoft} />
+            </View>
           ) : users.length > 0 ? (
-            <SwipeableCard 
-              key={users[0].id} 
-              user={users[0]} 
-              externalSwipeDirection={externalDirection}
-              onSwipeOut={(type: 'LIKE' | 'PASS') => handleSwipeOut(users[0].id, type)} 
-            />
+            <View style={{ width: '100%', height: CARD_HEIGHT, alignItems: 'center', justifyContent: 'center' }}>
+              {users.length > 1 && (
+                <BackgroundCard user={users[1]} dragX={dragX} />
+              )}
+              <SwipeableCard 
+                key={users[0].id} 
+                user={users[0]} 
+                dragX={dragX}
+                externalSwipeDirection={externalDirection}
+                onSwipeOut={(type: 'LIKE' | 'PASS') => handleSwipeOut(type)} 
+              />
+            </View>
           ) : (
             <Animated.View 
               entering={FadeIn.duration(400)}
@@ -265,24 +478,45 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Actions Row */}
-        <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 28, height: 72 }}>
-          {!loading && users.length > 0 && (
+        {/* Action Buttons */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 20, height: 72 }}>
+          {!loading && (
             <>
               <ActionButton 
-                icon={<Feather name="x" size={26} color={COLORS.pass} />} 
-                color={COLORS.pass}
-                onPress={() => setExternalDirection('PASS')} 
+                icon={<MaterialCommunityIcons name="undo-variant" size={22} color={COLORS.rewind} />} 
+                color={COLORS.rewind}
+                disabled={history.length === 0}
+                onPress={handleRewind} 
               />
-              <ActionButton 
-                icon={<AntDesign name="heart" size={28} color={COLORS.accentSoft} />} 
-                color={COLORS.accent}
-                isLarge
-                onPress={() => setExternalDirection('LIKE')} 
-              />
+              {users.length > 0 && (
+                <>
+                  <ActionButton 
+                    icon={<Feather name="x" size={26} color={COLORS.pass} />} 
+                    color={COLORS.pass}
+                    onPress={() => setExternalDirection('PASS')} 
+                  />
+                  <ActionButton 
+                    icon={<AntDesign name="heart" size={28} color={COLORS.accentSoft} />} 
+                    color={COLORS.accent}
+                    isLarge
+                    onPress={() => setExternalDirection('LIKE')} 
+                  />
+                </>
+              )}
             </>
           )}
         </View>
+
+        {/* Modal اختصاصی مچ */}
+        <MatchModal 
+          visible={matchModalVisible}
+          matchedUser={matchedUser}
+          onClose={() => setMatchModalVisible(false)}
+          onGoToChat={() => {
+            setMatchModalVisible(false);
+            router.push('/matches');
+          }}
+        />
 
       </View>
     </GestureHandlerRootView>
