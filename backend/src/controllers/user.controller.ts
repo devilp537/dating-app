@@ -65,8 +65,8 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.userId as string;
-    // اضافه شدن contactId و showPhoneNumber به مقادیر دریافتی
-    const { name, bio, gender, contactId, showPhoneNumber } = req.body;
+    // اضافه شدن age و province به همراه مقادیر قبلی
+    const { name, bio, gender, contactId, showPhoneNumber, age, province } = req.body;
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -75,7 +75,9 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         bio, 
         gender,
         contactId,
-        showPhoneNumber: Boolean(showPhoneNumber)
+        showPhoneNumber: Boolean(showPhoneNumber),
+        age: age ? Number(age) : undefined, // ذخیره سن
+        province // ذخیره استان
       },
     });
 
@@ -93,14 +95,19 @@ export const getDiscoveryUsers = async (req: Request, res: Response): Promise<vo
       select: { gender: true },
     });
 
-    // بررسی سخت‌گیرانه: اگر کاربر جنسیت ندارد، باید خطای 400 بدهد (اینجا فرانت‌اند کاربر را به Onboarding می‌فرستد)
-    if (!currentUser || !currentUser.gender) {
+    // بررسی اینکه آیا کاربر اصلاً در دیتابیس وجود دارد یا خیر (مدیریت ریست دیتابیس)
+    if (!currentUser) {
+      res.status(401).json({ error: 'کاربر یافت نشد. حساب شما پاک شده است.' });
+      return;
+    }
+
+    if (!currentUser.gender) {
       res.status(400).json({ error: 'لطفاً ابتدا پروفایل و جنسیت خود را تکمیل کنید.' });
       return;
     }
 
-    // انتخاب جنسیت مخالف به صورت خودکار
     const targetGender = currentUser.gender === 'MALE' ? 'FEMALE' : 'MALE';
+    const { province } = req.query; // دریافت فیلتر استان از درخواست فرانت‌اند
 
     const pastInteractions = await prisma.interaction.findMany({
       where: { swiperId: req.userId },
@@ -110,12 +117,20 @@ export const getDiscoveryUsers = async (req: Request, res: Response): Promise<vo
     const excludeIds = pastInteractions.map(i => i.targetId);
     excludeIds.push(req.userId as string); 
 
+    // ساخت داینامیک کوئری جستجو
+    const whereClause: any = {
+      gender: targetGender,
+      id: { notIn: excludeIds },
+    };
+
+    // اگر کاربر استانی را فیلتر کرده بود، به شرط دیتابیس اضافه می‌شود
+    if (province && typeof province === 'string') {
+      whereClause.province = province;
+    }
+
     const users = await prisma.user.findMany({
-      where: {
-        gender: targetGender,
-        id: { notIn: excludeIds },
-      },
-      select: { id: true, name: true, bio: true, gender: true },
+      where: whereClause,
+      select: { id: true, name: true, bio: true, gender: true, contactId: true }, // contactId برای مچ مودال اضافه شد
       take: 10,
     });
 
@@ -128,18 +143,20 @@ export const getDiscoveryUsers = async (req: Request, res: Response): Promise<vo
 
 export const swipeUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('--- دریافت درخواست Swipe ---');
-    console.log('Body:', req.body);
-    console.log('User ID:', req.userId);
-
     const { targetId, type } = req.body;
     const swiperId = req.userId as string;
 
-    const newInteraction = await prisma.interaction.create({
-      data: { swiperId, targetId, type },
+    // استفاده از upsert به جای create برای جلوگیری از ارور 500 در صورت تکراری بودن سوایپ (مثلاً موقع Rewind)
+    const newInteraction = await prisma.interaction.upsert({
+      where: {
+        swiperId_targetId: {
+          swiperId,
+          targetId,
+        }
+      },
+      update: { type },
+      create: { swiperId, targetId, type },
     });
-
-    console.log('تراکنش با موفقیت در دیتابیس ثبت شد:', newInteraction.id);
 
     let isMatch = false;
     if (type === 'LIKE') {

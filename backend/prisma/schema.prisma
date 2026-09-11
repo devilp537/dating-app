@@ -41,10 +41,19 @@ model User {
   contactId       String?  // آیدی ارتباطی مستقیم
   showPhoneNumber Boolean  @default(false)
   birthDate       DateTime?
+  age             Int?
   
+  // فیلدهای مکان و استان
+  province        String?  // استان فعلی (مثل "تهران")
   city            String?
   latitude        Float?
   longitude       Float?
+
+  // تنظیمات دیسکاوری (فیلترها)
+  targetGender    String?  @default("ALL") // تمایل به دیدن چه جنسیتی دارد (MALE, FEMALE, ALL)
+  targetMinAge    Int?     @default(18)    // حداقل سن فیلتر
+  targetMaxAge    Int?     @default(50)    // حداکثر سن فیلتر
+  targetProvinces String?  // لیست استان‌های هدف به صورت JSON String (مثل '["تهران", "البرز"]')
 
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
@@ -59,7 +68,7 @@ model User {
   reportsMade     Report[] @relation("Reporter")
   reportsReceived Report[] @relation("Reported")
 
-  // روابط تعاملات (نسخه اصلاح شده و بدون تکرار)
+  // روابط تعاملات
   sentInteractions     Interaction[] @relation("Swiper")
   receivedInteractions Interaction[] @relation("Target")
 
