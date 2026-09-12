@@ -146,7 +146,6 @@ export const swipeUser = async (req: Request, res: Response): Promise<void> => {
     const { targetId, type } = req.body;
     const swiperId = req.userId as string;
 
-    // استفاده از upsert به جای create برای جلوگیری از ارور 500 در صورت تکراری بودن سوایپ (مثلاً موقع Rewind)
     const newInteraction = await prisma.interaction.upsert({
       where: {
         swiperId_targetId: {
@@ -168,6 +167,20 @@ export const swipeUser = async (req: Request, res: Response): Promise<void> => {
 
       if (reverseInteraction && reverseInteraction.type === 'LIKE') {
         isMatch = true;
+
+        // مرتب‌سازی آیدی‌ها برای جلوگیری از ثبت تکراری (همیشه آیدی کوچکتر در user1)
+        const [user1Id, user2Id] = swiperId < targetId 
+          ? [swiperId, targetId] 
+          : [targetId, swiperId];
+
+        // ثبت قطعی مچ در دیتابیس
+        await prisma.match.upsert({
+          where: {
+            user1Id_user2Id: { user1Id, user2Id }
+          },
+          update: {},
+          create: { user1Id, user2Id }
+        });
       }
     }
 

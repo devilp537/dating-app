@@ -3,52 +3,50 @@ import prisma from '../utils/prisma';
 
 export const getMatches = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.userId;
-    if (!userId) {
-      res.status(401).json({ error: 'کاربر شناسایی نشد' });
-      return;
-    }
+    const userId = req.userId as string;
 
-    // پیدا کردن تمام مچ‌هایی که کاربر فعلی در آن‌ها حضور دارد (یا به عنوان user1 یا user2)
     const matches = await prisma.match.findMany({
       where: {
-        OR: [
-          { user1Id: userId },
-          { user2Id: userId }
-        ]
+        OR: [{ user1Id: userId }, { user2Id: userId }],
       },
       include: {
-        // دریافت اطلاعات کاربر مقابل
         user1: {
-          select: {
-            id: true, name: true, bio: true, city: true,
-            photos: true, contactInfo: true // اطلاعات تماس در اینجا باز می‌شود
-          }
+          select: { id: true, name: true, bio: true, photos: true, showPhoneNumber: true, phoneNumber: true, contactId: true, contactInfo: true }
         },
         user2: {
-          select: {
-            id: true, name: true, bio: true, city: true,
-            photos: true, contactInfo: true
-          }
-        }
+          select: { id: true, name: true, bio: true, photos: true, showPhoneNumber: true, phoneNumber: true, contactId: true, contactInfo: true }
+        },
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    // مرتب‌سازی خروجی تا فقط اطلاعات فرد مقابل (نه خود کاربر) به فرانت‌اند ارسال شود
-    const formattedMatches = matches.map(match => {
+    // 🔴 فیکس امنیتی ۲: فیلتر کردن اطلاعات تماس بر اساس رضایت کاربر (Privacy Flag)
+    const safeMatches = matches.map((match) => {
       const isUser1 = match.user1Id === userId;
-      const partner = isUser1 ? match.user2 : match.user1;
-      
+      const otherUser = isUser1 ? match.user2 : match.user1;
+
+      // اگر کاربر اجازه نداده باشد، اطلاعات تماسش را از خروجی API حذف می‌کنیم
+      const canShareContact = otherUser.showPhoneNumber === true;
+
       return {
-        matchId: match.id,
-        matchedAt: match.createdAt,
-        partner
+        id: match.id,
+        createdAt: match.createdAt,
+        user: {
+          id: otherUser.id,
+          name: otherUser.name,
+          bio: otherUser.bio,
+          photos: otherUser.photos,
+          // اعمال فیلتر امنیتی:
+          phoneNumber: canShareContact ? otherUser.phoneNumber : null,
+          contactId: canShareContact ? otherUser.contactId : null,
+          contactInfo: canShareContact ? otherUser.contactInfo : null,
+        }
       };
     });
 
-    res.json({ matches: formattedMatches });
+    res.json(safeMatches);
   } catch (error) {
-    res.status(500).json({ error: 'خطای سرور در دریافت لیست مچ‌ها' });
+    console.error('Get Matches Error:', error);
+    res.status(500).json({ error: 'خطا در دریافت لیست مچ‌ها' });
   }
 };

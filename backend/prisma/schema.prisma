@@ -3,29 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
-// ------------------------------------------------------
-// ENUMS
-// ------------------------------------------------------
-enum Gender {
-  MALE
-  FEMALE
-}
-
-enum InteractionType {
-  LIKE
-  PASS
-  BLOCK
-}
-
-enum ReportStatus {
-  PENDING
-  REVIEWED
-  RESOLVED
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // ------------------------------------------------------
@@ -37,7 +16,7 @@ model User {
   phoneNumber     String   @unique
   name            String?
   bio             String?
-  gender          Gender?
+  gender          String?
   contactId       String?  // آیدی ارتباطی مستقیم
   showPhoneNumber Boolean  @default(false)
   birthDate       DateTime?
@@ -110,21 +89,21 @@ model Match {
 }
 
 model Report {
-  id          String       @id @default(uuid())
+  id          String   @id @default(uuid())
   reporterId  String
-  reporter    User         @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporter    User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
   reportedId  String
-  reported    User         @relation("Reported", fields: [reportedId], references: [id], onDelete: Cascade)
-  reason      String       @db.Text
-  status      ReportStatus @default(PENDING)
-  createdAt   DateTime     @default(now())
+  reported    User     @relation("Reported", fields: [reportedId], references: [id], onDelete: Cascade)
+  reason      String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
 }
 
 model Interaction {
   id        String          @id @default(uuid())
   swiperId  String
   targetId  String
-  type      InteractionType
+  type      String
   createdAt DateTime        @default(now())
 
   swiper    User            @relation("Swiper", fields: [swiperId], references: [id], onDelete: Cascade)
@@ -140,6 +119,6 @@ model Message {
   text       String
   createdAt  DateTime @default(now())
 
-  sender   User @relation("SentMessages", fields: [senderId], references: [id])
-  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  sender     User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver   User @relation("ReceivedMessages", fields: [receiverId], references: [id])
 }

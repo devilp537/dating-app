@@ -1,10 +1,11 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes'; 
 import photoRoutes from './routes/photo.routes';
-import swipeRoutes from './routes/swipe.routes';
 import matchRoutes from './routes/match.routes';
 import chatRoutes from './routes/chat.routes';
 
@@ -19,7 +20,6 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/photos', photoRoutes);
-app.use('/api/swipe', swipeRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/chat', chatRoutes);
 

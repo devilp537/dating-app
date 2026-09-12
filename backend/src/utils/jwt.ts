@@ -1,5 +1,9 @@
 import jwt from 'jsonwebtoken';
-const SECRET = 'SUPER_SECRET_KEY'; // هاردکد شده برای تست
-export const generateToken = (userId: string) => {
-  return jwt.sign({ userId }, SECRET, { expiresIn: '30d' });
+
+export const generateToken = (userId: string): string => {
+  // استفاده از متغیر محیطی با یک مقدار پشتیبان برای محیط توسعه
+  const secret = process.env.JWT_SECRET || 'dating_app_super_secret_key_2026_xyz';
+  
+  // توکن برای ۳۰ روز معتبر خواهد بود
+  return jwt.sign({ userId }, secret, { expiresIn: '30d' });
 };

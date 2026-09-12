@@ -30,6 +30,7 @@ export default function MatchesScreen() {
       const res = await apiClient.get('/chat/matches', { headers: { Authorization: `Bearer ${token}` } });
       setMatches(res.data.slice(0, 10));
     } catch {
+      // خطاها می‌توانند اینجا هندل شوند
     } finally { 
       setLoading(false); 
     }
@@ -78,39 +79,52 @@ export default function MatchesScreen() {
               </TouchableOpacity>
             </View>
           }
-          renderItem={({ item }) => (
-            <View className="p-5 rounded-[24px] mb-4 border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
-              <View className="flex-row items-center mb-5">
-                <View className="w-14 h-14 rounded-full items-center justify-center mr-4" style={{ backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border }}>
-                  <Text className="text-2xl">{EMOJIS[item.id.charCodeAt(0) % EMOJIS.length]}</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xl font-bold mb-1" style={{ color: COLORS.text }}>{item.name}</Text>
-                  <Text className="text-sm" style={{ color: COLORS.textMuted }} numberOfLines={1}>{item.bio || 'بدون بیوگرافی'}</Text>
-                </View>
-              </View>
+          renderItem={({ item }) => {
+            // استخراج اطلاعات کاربر مقابل از داخل آبجکت user که از بک‌اند می‌آید
+            const targetUser = item.user;
+            
+            // بررسی امنیتی برای نمایش شماره و آیدی
+            const hasPhone = !!targetUser?.phoneNumber;
+            const hasContactId = !!targetUser?.contactId;
 
-              <View className="flex-row gap-3">
-                {item.contactId ? (
-                  <TouchableOpacity className="flex-1 h-11 rounded-xl flex-row items-center justify-center gap-2 border" style={{ backgroundColor: 'rgba(139, 92, 246, 0.12)', borderColor: COLORS.border }} onPress={() => copy(item.contactId, 'آیدی')}>
-                    <Feather name="at-sign" size={15} color={COLORS.accentSoft} />
-                    <Text style={{ color: COLORS.accentSoft }} className="font-bold text-sm">{item.contactId}</Text>
+            return (
+              <View className="p-5 rounded-[24px] mb-4 border" style={{ backgroundColor: COLORS.surface, borderColor: COLORS.border }}>
+                <View className="flex-row items-center mb-5">
+                  <View className="w-14 h-14 rounded-full items-center justify-center mr-4" style={{ backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border }}>
+                    <Text className="text-2xl">{EMOJIS[(targetUser?.id?.charCodeAt(0) || 0) % EMOJIS.length]}</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xl font-bold mb-1" style={{ color: COLORS.text }}>{targetUser?.name || 'کاربر ناشناس'}</Text>
+                    <Text className="text-sm" style={{ color: COLORS.textMuted }} numberOfLines={1}>{targetUser?.bio || 'بدون بیوگرافی'}</Text>
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3">
+                  {hasContactId ? (
+                    <TouchableOpacity 
+                      className="flex-1 h-11 rounded-xl flex-row items-center justify-center gap-2 border" 
+                      style={{ backgroundColor: 'rgba(139, 92, 246, 0.12)', borderColor: COLORS.border }} 
+                      onPress={() => copy(targetUser.contactId, 'آیدی')}
+                    >
+                      <Feather name="at-sign" size={15} color={COLORS.accentSoft} />
+                      <Text style={{ color: COLORS.accentSoft }} className="font-bold text-sm">{targetUser.contactId}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  
+                  <TouchableOpacity 
+                    className="flex-1 h-11 rounded-xl flex-row items-center justify-center gap-2 border" 
+                    style={{ backgroundColor: hasPhone ? COLORS.surfaceAlt : 'transparent', borderColor: COLORS.border }} 
+                    onPress={() => hasPhone && copy(targetUser.phoneNumber, 'شماره')}
+                  >
+                    <Feather name={hasPhone ? "phone" : "phone-off"} size={15} color={hasPhone ? COLORS.text : COLORS.textMuted} />
+                    <Text style={{ color: hasPhone ? COLORS.text : COLORS.textMuted }} className="font-bold text-sm">
+                      {hasPhone ? targetUser.phoneNumber : 'مخفی'}
+                    </Text>
                   </TouchableOpacity>
-                ) : null}
-                
-                <TouchableOpacity 
-                  className="flex-1 h-11 rounded-xl flex-row items-center justify-center gap-2 border" 
-                  style={{ backgroundColor: item.showPhoneNumber ? COLORS.surfaceAlt : 'transparent', borderColor: COLORS.border }} 
-                  onPress={() => item.showPhoneNumber && copy(item.phoneNumber, 'شماره')}
-                >
-                  <Feather name={item.showPhoneNumber ? "phone" : "phone-off"} size={15} color={item.showPhoneNumber ? COLORS.text : COLORS.textMuted} />
-                  <Text style={{ color: item.showPhoneNumber ? COLORS.text : COLORS.textMuted }} className="font-bold text-sm">
-                    {item.showPhoneNumber ? item.phoneNumber : 'مخفی'}
-                  </Text>
-                </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
+            );
+          }}
         />
       )}
     </View>

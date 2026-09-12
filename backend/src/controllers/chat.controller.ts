@@ -1,67 +1,74 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 
-// گرفتن لیست کسانی که مچ شده‌اند (هر دو به هم لایک داده‌اند)
-export const getMatches = async (req: Request, res: Response): Promise<void> => {
+export const sendMessage = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.userId as string;
+    const senderId = req.userId as string;
+    const receiverId = req.body.receiverId as string;
+    const content = req.body.content || req.body.text; // پشتیبانی از هر دو حالت ارسالی فرانت‌اند
 
-    // پیدا کردن تمام کسانی که کاربر فعلی آن‌ها را لایک کرده است
-    const myLikes = await prisma.interaction.findMany({
-      where: { swiperId: userId, type: 'LIKE' },
-      select: { targetId: true },
-    });
-    const likedIds = myLikes.map(l => l.targetId);
+    if (!receiverId || !content) {
+      res.status(400).json({ error: 'اطلاعات گیرنده و متن پیام الزامی است.' });
+      return;
+    }
 
-    // پیدا کردن کسانی که کاربر فعلی را لایک کرده‌اند و متقابلاً او هم آن‌ها را لایک کرده
-    const matches = await prisma.interaction.findMany({
+    // بررسی اینکه آیا این دو کاربر واقعاً با هم مچ هستند یا خیر
+    const isMatch = await prisma.match.findFirst({
       where: {
-        swiperId: { in: likedIds },
-        targetId: userId,
-        type: 'LIKE',
-      },
-      include: {
-        swiper: {
-          select: { 
-            id: true, 
-            name: true, 
-            bio: true, 
-            gender: true, 
-            phoneNumber: true, 
-            contactId: true, 
-            showPhoneNumber: true 
-          },
-        },
-      },
+        OR: [
+          { user1Id: senderId, user2Id: receiverId },
+          { user1Id: receiverId, user2Id: senderId }
+        ]
+      }
     });
 
-    const matchedUsers = matches.map(m => m.swiper);
-    res.json(matchedUsers);
+    if (!isMatch) {
+      res.status(403).json({ error: 'شما با این کاربر مچ نیستید و اجازه ارسال پیام ندارید.' });
+      return;
+    }
+
+    const message = await prisma.message.create({
+      // فیلد content به فیلد text که در اسکیما تعریف کردید مپ می‌شود
+      data: { senderId, receiverId, text: content as string },
+    });
+
+    res.status(201).json(message);
   } catch (error) {
-    console.error('Match Error:', error);
-    res.status(500).json({ error: 'خطا در دریافت لیست مچ‌ها' });
+    console.error('Send Message Error:', error);
+    res.status(500).json({ error: 'خطا در ارسال پیام' });
   }
 };
 
-// گرفتن پیام‌های بین دو کاربر
 export const getMessages = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.userId as string;
-    
-    const otherUserId = Array.isArray(req.params.otherUserId) 
-      ? req.params.otherUserId[0] 
-      : req.params.otherUserId;
+    const targetId = req.params.targetId as string;
 
-    if (!otherUserId) {
-      res.status(400).json({ error: 'شناسه کاربر مقابل نامعتبر است' });
+    if (!targetId) {
+      res.status(400).json({ error: 'آیدی مخاطب نامعتبر است.' });
+      return;
+    }
+
+    // جلوگیری از خواندن پیام‌های دیگران بدون داشتن مچ
+    const isMatch = await prisma.match.findFirst({
+      where: {
+        OR: [
+          { user1Id: userId, user2Id: targetId },
+          { user1Id: targetId, user2Id: userId }
+        ]
+      }
+    });
+
+    if (!isMatch) {
+      res.status(403).json({ error: 'دسترسی غیرمجاز' });
       return;
     }
 
     const messages = await prisma.message.findMany({
       where: {
         OR: [
-          { senderId: userId, receiverId: otherUserId },
-          { senderId: otherUserId, receiverId: userId },
+          { senderId: userId, receiverId: targetId },
+          { senderId: targetId, receiverId: userId },
         ],
       },
       orderBy: { createdAt: 'asc' },
@@ -71,27 +78,5 @@ export const getMessages = async (req: Request, res: Response): Promise<void> =>
   } catch (error) {
     console.error('Get Messages Error:', error);
     res.status(500).json({ error: 'خطا در دریافت پیام‌ها' });
-  }
-};
-
-// ارسال پیام جدید
-export const sendMessage = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const senderId = req.userId as string;
-    const { receiverId, text } = req.body;
-
-    if (!text || !receiverId) {
-      res.status(400).json({ error: 'اطلاعات ناقص است' });
-      return;
-    }
-
-    const message = await prisma.message.create({
-      data: { senderId, receiverId, text },
-    });
-
-    res.json(message);
-  } catch (error) {
-    console.error('Send Message Error:', error);
-    res.status(500).json({ error: 'خطا در ارسال پیام' });
   }
 };
