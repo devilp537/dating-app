@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiClient } from '../../api/client';
+import { apiClient } from '../api/client';
+import { getToken } from '../utils/secureStorage'; // 🔒 استفاده از انبار امن
 
 type Message = {
   id: string;
@@ -22,19 +22,18 @@ export default function ChatScreen() {
 
   useEffect(() => {
     initializeChat();
-    const interval = setInterval(fetchMessages, 3000); // رفرش خودکار پیام‌ها هر ۳ ثانیه
+    const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
   }, []);
 
   const initializeChat = async () => {
     try {
-      const token = await AsyncStorage.getItem('userToken');
+      const token = await getToken();
       if (!token) {
         router.replace('/');
         return;
       }
 
-      // استخراج آیدی کاربر فعلی از توکن (یا گرفتن پروفایل)
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
@@ -50,12 +49,11 @@ export default function ChatScreen() {
 
   const fetchMessages = async () => {
     try {
-      const token = await AsyncStorage.getItem('userToken');
+      const token = await getToken();
       if (!token) return;
 
-      const response = await apiClient.get(`/chat/messages/${otherUserId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // apiClient خودش به طور خودکار هدر Authorization را تنظیم می‌کند
+      const response = await apiClient.get(`/chat/messages/${otherUserId}`);
       setMessages(response.data);
     } catch (error) {
       console.error('خطا در دریافت پیام‌ها:', error);
@@ -69,13 +67,13 @@ export default function ChatScreen() {
     setText('');
 
     try {
-      const token = await AsyncStorage.getItem('userToken');
+      const token = await getToken();
       if (!token) return;
 
-      await apiClient.post('/chat/messages', 
-        { receiverId: otherUserId, text: messageText },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await apiClient.post('/chat/messages', {
+        receiverId: otherUserId,
+        text: messageText,
+      });
 
       fetchMessages();
     } catch (error) {
@@ -96,7 +94,6 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-zinc-900"
     >
-      {/* هدر صفحه */}
       <View className="flex-row items-center justify-between px-6 pt-16 pb-4 border-b border-zinc-800 bg-zinc-900">
         <TouchableOpacity onPress={() => router.back()}>
           <Text className="text-teal-400 font-bold">← بازگشت</Text>
@@ -105,7 +102,6 @@ export default function ChatScreen() {
         <View style={{ width: 50 }} />
       </View>
 
-      {/* لیست پیام‌ها */}
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -124,7 +120,6 @@ export default function ChatScreen() {
         }}
       />
 
-      {/* نوار ارسال پیام */}
       <View className="p-4 bg-zinc-900 border-t border-zinc-800 flex-row items-center space-x-2">
         <TextInput
           className="flex-1 bg-zinc-800 text-white px-4 py-3 rounded-xl border border-zinc-700 text-base"

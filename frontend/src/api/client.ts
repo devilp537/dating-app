@@ -1,11 +1,25 @@
 import axios from 'axios';
-
-// آدرس بک‌اند (برای اجرای وب روی همان سیستم)
-export const API_URL = 'http://localhost:3000/api';
+import { getToken } from '../utils/secureStorage';
 
 export const apiClient = axios.create({
-  baseURL: API_URL,
+  baseURL: 'http://localhost:3000/api',
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+apiClient.interceptors.request.use(
+  async (config) => {
+    try {
+      const token = await getToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Error attaching secure token:', error);
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);

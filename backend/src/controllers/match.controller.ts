@@ -11,22 +11,47 @@ export const getMatches = async (req: Request, res: Response): Promise<void> => 
       },
       include: {
         user1: {
-          select: { id: true, name: true, bio: true, photos: true, showPhoneNumber: true, phoneNumber: true, contactId: true, contactInfo: true }
+          select: { 
+            id: true, 
+            name: true, 
+            age: true, 
+            gender: true, 
+            bio: true, 
+            province: true,
+            city: true,
+            photos: true, 
+            showPhoneNumber: true, 
+            phoneNumber: true, 
+            contactId: true, 
+            contactInfo: true 
+          }
         },
         user2: {
-          select: { id: true, name: true, bio: true, photos: true, showPhoneNumber: true, phoneNumber: true, contactId: true, contactInfo: true }
+          select: { 
+            id: true, 
+            name: true, 
+            age: true, 
+            gender: true, 
+            bio: true, 
+            province: true,
+            city: true,
+            photos: true, 
+            showPhoneNumber: true, 
+            phoneNumber: true, 
+            contactId: true, 
+            contactInfo: true 
+          }
         },
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    // 🔴 فیکس امنیتی ۲: فیلتر کردن اطلاعات تماس بر اساس رضایت کاربر (Privacy Flag)
     const safeMatches = matches.map((match) => {
       const isUser1 = match.user1Id === userId;
       const otherUser = isUser1 ? match.user2 : match.user1;
-
-      // اگر کاربر اجازه نداده باشد، اطلاعات تماسش را از خروجی API حذف می‌کنیم
-      const canShareContact = otherUser.showPhoneNumber === true;
+      
+      // فقط شماره تلفن تابع این شرط است
+      const canSharePhone = otherUser.showPhoneNumber === true;
 
       return {
         id: match.id,
@@ -34,12 +59,19 @@ export const getMatches = async (req: Request, res: Response): Promise<void> => 
         user: {
           id: otherUser.id,
           name: otherUser.name,
+          age: otherUser.age,
+          gender: otherUser.gender,
           bio: otherUser.bio,
+          province: otherUser.province,
+          city: otherUser.city,
           photos: otherUser.photos,
-          // اعمال فیلتر امنیتی:
-          phoneNumber: canShareContact ? otherUser.phoneNumber : null,
-          contactId: canShareContact ? otherUser.contactId : null,
-          contactInfo: canShareContact ? otherUser.contactInfo : null,
+          
+          // شماره تلفن بسته به تنظیمات مخفی یا نمایش داده می‌شود
+          phoneNumber: canSharePhone ? otherUser.phoneNumber : null,
+          
+          // آیدی و اطلاعات ارتباطی همیشه آزاد هستند و نمایش داده می‌شوند
+          contactId: otherUser.contactId,
+          contactInfo: otherUser.contactInfo,
         }
       };
     });

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Switch, Modal, FlatList } from 'react-native';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../api/client';
+import { getToken } from '../utils/secureStorage'; // 🔒 استفاده از انبار امن
 import { Feather } from '@expo/vector-icons';
 
 const COLORS = { bg: '#09090B', surface: '#18181B', border: '#27272A', accent: '#8B5CF6', accentSoft: '#A78BFA', text: '#FAFAFA', muted: '#A1A1AA' };
@@ -40,7 +40,8 @@ export default function OnboardingScreen() {
 
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem('userToken');
+      // استفاده از secureStorage امن برای گرفتن توکن (البته apiClient خودش هم اتوماتیک هدر را می‌گذارد)
+      const token = await getToken();
       await apiClient.put('/users/profile', { 
         name: form.name, 
         bio: form.bio, 

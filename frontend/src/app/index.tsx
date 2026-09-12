@@ -1,13 +1,12 @@
 import { useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../api/client';
+import { saveToken } from '../utils/secureStorage'; // 🔒 استفاده از انبار امن
 import { Feather } from '@expo/vector-icons';
 
 const COLORS = { bg: '#09090B', surface: '#18181B', border: '#27272A', accent: '#8B5CF6', text: '#FAFAFA', muted: '#A1A1AA' };
 
-// برای غیرفعال کردن outline پیش‌فرض مرورگر در حالت وب
 const styles = StyleSheet.create({
   noOutline: {
     outlineStyle: 'none'
@@ -25,7 +24,7 @@ function OtpInput({ value, length = 5 }: { value: string, length?: number }) {
             backgroundColor: COLORS.surface, 
             borderWidth: 1, 
             borderColor: i === value.length ? COLORS.accent : COLORS.border,
-            maxWidth: 65 // این مقدار از بزرگ شدن بیش از حد کادرها در صفحات عریض جلوگیری می‌کند
+            maxWidth: 65 
           }}
         >
           <Text className="text-2xl font-bold" style={{ color: COLORS.text }}>{value[i] || ''}</Text>
@@ -46,7 +45,8 @@ export default function LoginScreen() {
     if (phone.length < 10) return Alert.alert('خطا', 'شماره معتبر نیست');
     setLoading(true);
     try {
-      await apiClient.post('/users/login', { phoneNumber: phone });
+      // استفاده از مسیر یکپارچه شده در بک‌اند
+      await apiClient.post('/auth/login', { phoneNumber: phone });
       setStep('OTP');
     } catch {
       Alert.alert('خطا', 'ارتباط با سرور برقرار نشد');
@@ -57,9 +57,10 @@ export default function LoginScreen() {
     if (otp.length < 5) return Alert.alert('خطا', 'کد کامل نیست');
     setLoading(true);
     try {
-      const res = await apiClient.post('/users/verify', { phoneNumber: phone, otp });
+      const res = await apiClient.post('/auth/verify', { phoneNumber: phone, otp });
       if (res.data.token) {
-        await AsyncStorage.setItem('userToken', res.data.token);
+        // ذخیره امن توکن با SecureStore
+        await saveToken(res.data.token);
         router.replace((res.data.user.name === 'کاربر جدید' || !res.data.user.gender) ? '/onboarding' : '/home');
       }
     } catch {

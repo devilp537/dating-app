@@ -13,9 +13,9 @@ import Animated, {
   ZoomIn,
   type SharedValue
 } from 'react-native-reanimated';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { apiClient } from '../api/client';
+import { getToken, removeToken } from '../utils/secureStorage'; // 🔒 استفاده از انبار امن
 import { AntDesign, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
@@ -201,11 +201,9 @@ export default function HomeScreen() {
   const [matchModalVisible, setMatchModalVisible] = useState(false);
   const [matchedUser, setMatchedUser] = useState<User | null>(null);
 
-  // فیلتر جستجو
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
 
-  // تغییر استان خود کاربر (پروفایل خودش)
   const [myProvinceModalVisible, setMyProvinceModalVisible] = useState(false);
   const [myCurrentProvince, setMyCurrentProvince] = useState<string | null>(null);
 
@@ -214,21 +212,20 @@ export default function HomeScreen() {
   const fetchDiscoveryUsers = async (provinceFilter: string | null = selectedProvince) => {
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem('userToken');
+      const token = await getToken();
       if (!token) {
         router.replace('/');
         return;
       }
       
       const response = await apiClient.get('/users/discovery', { 
-        headers: { Authorization: `Bearer ${token}` },
         params: provinceFilter ? { province: provinceFilter } : {}
       });
       
       setUsers(response.data);
       setHistory([]);
     } catch (error: any) {
-      await AsyncStorage.multiRemove(['userToken', 'discoveryProvince']);
+      await removeToken();
       router.replace('/');
     } finally {
       setLoading(false);
@@ -236,20 +233,7 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    const loadSavedData = async () => {
-      try {
-        const savedProvince = await AsyncStorage.getItem('discoveryProvince');
-        if (savedProvince) {
-          setSelectedProvince(savedProvince);
-          fetchDiscoveryUsers(savedProvince);
-        } else {
-          fetchDiscoveryUsers(null);
-        }
-      } catch (e) {
-        fetchDiscoveryUsers(null);
-      }
-    };
-    loadSavedData();
+    fetchDiscoveryUsers(null);
   }, []);
 
   const handleSwipeOut = async (type: 'LIKE' | 'PASS') => {
@@ -262,8 +246,7 @@ export default function HomeScreen() {
     dragX.value = 0;
 
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await apiClient.post('/users/swipe', { targetId: swipedUser.id, type }, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await apiClient.post('/users/swipe', { targetId: swipedUser.id, type });
       if (response.data?.isMatch) {
         triggerHaptic('success');
         setMatchedUser(swipedUser);
@@ -285,27 +268,15 @@ export default function HomeScreen() {
   const applyProvinceFilter = async (province: string | null) => {
     setSelectedProvince(province);
     setFilterModalVisible(false);
-    try {
-      if (province) {
-        await AsyncStorage.setItem('discoveryProvince', province);
-      } else {
-        await AsyncStorage.removeItem('discoveryProvince');
-      }
-    } catch (e) {}
     fetchDiscoveryUsers(province);
   };
 
-  // تابع برای ثبت استان جدید خود کاربر در پروفایلش
   const updateMyProvince = async (newProvince: string) => {
     setMyCurrentProvince(newProvince);
     setMyProvinceModalVisible(false);
     triggerHaptic('success');
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      await apiClient.put('/users/profile', { province: newProvince }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      // بعد از تغییر استان خودم، لیست دیسکاوری را هم رفرش می‌کنیم تا بر اساس محل جدید باشد
+      await apiClient.put('/users/profile', { province: newProvince });
       fetchDiscoveryUsers(selectedProvince);
     } catch (error) {
       console.error('Update my province error:', error);
@@ -313,7 +284,7 @@ export default function HomeScreen() {
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.multiRemove(['userToken', 'discoveryProvince']);
+    await removeToken();
     router.replace('/');
   };
 
@@ -325,12 +296,10 @@ export default function HomeScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 28, height: 44 }}>
           <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: '800', letterSpacing: 2 }}>DISCOVER</Text>
           <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-            {/* دکمه تغییر استان خودم (محل سکونت) */}
             <TouchableOpacity onPress={() => setMyProvinceModalVisible(true)} className="p-1">
               <Feather name="map-pin" size={22} color={COLORS.accentSoft} />
             </TouchableOpacity>
 
-            {/* دکمه فیلتر جستجوی کاربران */}
             <TouchableOpacity onPress={() => setFilterModalVisible(true)} className="p-1">
               <Feather name="sliders" size={22} color={selectedProvince ? COLORS.accentSoft : COLORS.textMuted} />
             </TouchableOpacity>
@@ -388,7 +357,7 @@ export default function HomeScreen() {
 
         <MatchModal visible={matchModalVisible} matchedUser={matchedUser} onClose={() => setMatchModalVisible(false)} onGoToChat={() => { setMatchModalVisible(false); router.push('/matches'); }} />
 
-        {/* مودال تغییر استان خودم (محل سکونت کاربر) */}
+        {/* مودال تغییر استان خودم */}
         <Modal visible={myProvinceModalVisible} animationType="slide" transparent>
           <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
             <View className="rounded-t-[32px] pt-4 pb-8 px-2 h-2/3" style={{ backgroundColor: COLORS.surface }}>

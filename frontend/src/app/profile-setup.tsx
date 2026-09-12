@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../api/client';
 
 export default function ProfileSetupScreen() {
@@ -18,15 +17,8 @@ export default function ProfileSetupScreen() {
 
     setIsLoading(true);
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      
-      await apiClient.put(
-        '/users/profile',
-        { name, bio, gender },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      // apiClient خودش به طور خودکار توکن امن را از SecureStore می‌خواند و روی هدر می‌گذارد
+      await apiClient.put('/users/profile', { name, bio, gender });
 
       Alert.alert('موفق', 'پروفایل شما تکمیل شد!');
       router.replace('/home');

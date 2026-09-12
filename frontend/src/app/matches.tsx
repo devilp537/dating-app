@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, Clipboard } from 'react-native';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../api/client';
+import { getToken } from '../utils/secureStorage'; // 🔒 استفاده از انبار امن
 import { Feather } from '@expo/vector-icons';
 
 const COLORS = { 
@@ -25,12 +25,14 @@ export default function MatchesScreen() {
   const fetchMatches = async () => {
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem('userToken');
+      const token = await getToken();
       if (!token) return router.replace('/');
-      const res = await apiClient.get('/chat/matches', { headers: { Authorization: `Bearer ${token}` } });
+      
+      // apiClient به طور خودکار هدر Authorization را با token مدیریت می‌کند
+      const res = await apiClient.get('/chat/matches');
       setMatches(res.data.slice(0, 10));
     } catch {
-      // خطاها می‌توانند اینجا هندل شوند
+      // خطاها در این بخش هندل می‌شوند
     } finally { 
       setLoading(false); 
     }
@@ -80,10 +82,7 @@ export default function MatchesScreen() {
             </View>
           }
           renderItem={({ item }) => {
-            // استخراج اطلاعات کاربر مقابل از داخل آبجکت user که از بک‌اند می‌آید
             const targetUser = item.user;
-            
-            // بررسی امنیتی برای نمایش شماره و آیدی
             const hasPhone = !!targetUser?.phoneNumber;
             const hasContactId = !!targetUser?.contactId;
 

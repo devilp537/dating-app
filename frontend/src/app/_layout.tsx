@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Stack, router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getToken } from '../utils/secureStorage'; // 🔒 استفاده از انبار امن
 import { View, ActivityIndicator } from 'react-native';
 import '../../global.css'; 
 
@@ -10,7 +10,7 @@ export default function Layout() {
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
-        const token = await AsyncStorage.getItem('userToken');
+        const token = await getToken();
         if (token) {
           router.replace('/home');
         }

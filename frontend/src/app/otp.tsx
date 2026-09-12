@@ -2,28 +2,30 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { apiClient } from '../api/client';
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { saveToken } from '../utils/secureStorage'; // 🔒 استفاده از انبار امن جدید
 
 export default function OTPScreen() {
   const { phone } = useLocalSearchParams();
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-const handleVerify = async () => {
+  const handleVerify = async () => {
     if (code.length < 5) return;
 
     setIsLoading(true);
     try {
-      const response = await apiClient.post('/users/verify', {
+      // توجه: اگر روت بک‌اند شما /auth/verify است، آن را اینجا تنظیم کنید
+      const response = await apiClient.post('/auth/verify', {
         phoneNumber: phone,
         otp: code,
       });
 
-      await AsyncStorage.setItem('userToken', response.data.token);
+      // ذخیره توکن با امنیت سخت‌افزاری SecureStore
+      await saveToken(response.data.token);
       
       // اگر کاربر جدید است به صفحه ستاپ پروفایل برود
       if (response.data.user.name === 'کاربر جدید') {
-        router.replace('./profile-setup');
+        router.replace('/profile-setup');
       } else {
         router.replace('/home'); 
       }
