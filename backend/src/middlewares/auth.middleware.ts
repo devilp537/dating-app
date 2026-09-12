@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// معرفی فیلد userId به تایپ‌های پیش‌فرض Express
+// 🔴 این بخش به تایپ‌اسکریپت می‌فهماند که ما userId را به Request اضافه کرده‌ایم
 declare global {
   namespace Express {
     interface Request {
@@ -11,24 +11,25 @@ declare global {
 }
 
 export const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'توکن احراز هویت ارسال نشده است.' });
-    return;
-  }
-
-  const token = authHeader.split(' ')[1];
-
   try {
-    // استفاده از متغیر محیطی به جای هاردکد کردن SUPER_SECRET_KEY
-    const secret = process.env.JWT_SECRET || 'SUPER_SECRET_KEY';
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'توکن ارائه نشده است' });
+      return;
+    }
+
+    const token = authHeader.split(' ')[1];
     
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('FATAL ERROR: JWT_SECRET is not defined in environment variables.');
+    }
+
     const decoded = jwt.verify(token, secret) as { userId: string };
     req.userId = decoded.userId;
     
     next();
   } catch (error) {
-    res.status(403).json({ error: 'توکن نامعتبر یا منقضی شده است.' });
+    res.status(403).json({ error: 'توکن نامعتبر است' });
   }
 };
