@@ -1,13 +1,12 @@
 import jwt from 'jsonwebtoken';
 
-const getSecret = () => {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('FATAL ERROR: JWT_SECRET is not defined in environment variables.');
-  }
-  return secret;
-};
+const SECRET_KEY = process.env.JWT_SECRET;
+
+if (!SECRET_KEY) {
+  console.error("CRITICAL ERROR: JWT_SECRET is not defined in .env file!");
+  process.exit(1); // سرور در صورت نبود کلید اصلا بالا نمیاد
+}
 
 export const generateToken = (userId: string): string => {
-  return jwt.sign({ userId }, getSecret(), { expiresIn: '30d' });
+  return jwt.sign({ userId }, SECRET_KEY, { expiresIn: '30d' });
 };

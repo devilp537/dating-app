@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// 🔴 این بخش به تایپ‌اسکریپت می‌فهماند که ما userId را به Request اضافه کرده‌ایم
+// 1. گسترش تایپ Request اکسپرس
 declare global {
   namespace Express {
     interface Request {
@@ -10,26 +10,26 @@ declare global {
   }
 }
 
+const SECRET_KEY = process.env.JWT_SECRET;
+
 export const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+  if (!SECRET_KEY) {
+    res.status(500).json({ error: 'Server misconfiguration: JWT secret missing' });
+    return;
+  }
+
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (!token) {
+    res.status(401).json({ error: 'Access denied: No token provided' });
+    return;
+  }
+
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'توکن ارائه نشده است' });
-      return;
-    }
-
-    const token = authHeader.split(' ')[1];
-    
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('FATAL ERROR: JWT_SECRET is not defined in environment variables.');
-    }
-
-    const decoded = jwt.verify(token, secret) as { userId: string };
+    const decoded = jwt.verify(token, SECRET_KEY) as { userId: string };
     req.userId = decoded.userId;
-    
     next();
   } catch (error) {
-    res.status(403).json({ error: 'توکن نامعتبر است' });
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
