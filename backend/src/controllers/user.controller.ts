@@ -1,49 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
-import { generateToken } from '../utils/jwt';
-import { z } from 'zod';
 
-const phoneSchema = z.object({
-  phoneNumber: z.string().min(10, "شماره تماس نامعتبر است"),
-});
-
-export const requestOtp = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { phoneNumber } = phoneSchema.parse(req.body);
-    res.json({ message: 'کد تایید ارسال شد', mockOtp: '12345' });
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-       res.status(400).json({ error: 'فرمت اطلاعات اشتباه است', details: error.issues });
-       return;
-    }
-    res.status(400).json({ error: 'خطایی رخ داد' });
-  }
-};
-
-export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { phoneNumber, otp } = req.body;
-
-    if (otp !== '12345') {
-      res.status(401).json({ error: 'کد تایید اشتباه است' });
-      return;
-    }
-
-    let user = await prisma.user.findUnique({ where: { phoneNumber } });
-
-    if (!user) {
-      user = await prisma.user.create({
-        data: { phoneNumber, name: 'کاربر جدید' },
-      });
-      await prisma.contactInfo.create({ data: { userId: user.id } });
-    }
-
-    const token = generateToken(user.id);
-    res.json({ message: 'لاگین موفقیت‌آمیز', token, user });
-  } catch (error) {
-    res.status(500).json({ error: 'خطای سرور' });
-  }
-};
+// توابع requestOtp و verifyOtp از اینجا حذف شدند (چون حالا در auth.controller هستند)
 
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -65,7 +23,6 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.userId as string;
-    // اضافه شدن age و province به همراه مقادیر قبلی
     const { name, bio, gender, contactId, showPhoneNumber, age, province } = req.body;
 
     const updatedUser = await prisma.user.update({
@@ -76,8 +33,8 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         gender,
         contactId,
         showPhoneNumber: Boolean(showPhoneNumber),
-        age: age ? Number(age) : undefined, // ذخیره سن
-        province // ذخیره استان
+        age: age ? Number(age) : undefined,
+        province
       },
     });
 
@@ -95,7 +52,6 @@ export const getDiscoveryUsers = async (req: Request, res: Response): Promise<vo
       select: { gender: true },
     });
 
-    // بررسی اینکه آیا کاربر اصلاً در دیتابیس وجود دارد یا خیر (مدیریت ریست دیتابیس)
     if (!currentUser) {
       res.status(401).json({ error: 'کاربر یافت نشد. حساب شما پاک شده است.' });
       return;
@@ -107,7 +63,7 @@ export const getDiscoveryUsers = async (req: Request, res: Response): Promise<vo
     }
 
     const targetGender = currentUser.gender === 'MALE' ? 'FEMALE' : 'MALE';
-    const { province } = req.query; // دریافت فیلتر استان از درخواست فرانت‌اند
+    const { province } = req.query;
 
     const pastInteractions = await prisma.interaction.findMany({
       where: { swiperId: req.userId },
@@ -117,20 +73,18 @@ export const getDiscoveryUsers = async (req: Request, res: Response): Promise<vo
     const excludeIds = pastInteractions.map(i => i.targetId);
     excludeIds.push(req.userId as string); 
 
-    // ساخت داینامیک کوئری جستجو
     const whereClause: any = {
       gender: targetGender,
       id: { notIn: excludeIds },
     };
 
-    // اگر کاربر استانی را فیلتر کرده بود، به شرط دیتابیس اضافه می‌شود
     if (province && typeof province === 'string') {
       whereClause.province = province;
     }
 
     const users = await prisma.user.findMany({
       where: whereClause,
-      select: { id: true, name: true, bio: true, gender: true, contactId: true }, // contactId برای مچ مودال اضافه شد
+      select: { id: true, name: true, bio: true, gender: true, contactId: true }, 
       take: 10,
     });
 
@@ -143,37 +97,41 @@ export const getDiscoveryUsers = async (req: Request, res: Response): Promise<vo
 
 export const swipeUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { targetId, type } = req.body;
+    // 👈 تغییر مهم: دریافت نام متغیرها بر اساس Zod
+    const { targetUserId, interactionType } = req.body;
     const swiperId = req.userId as string;
 
+    // ثبت در دیتابیس
     const newInteraction = await prisma.interaction.upsert({
       where: {
         swiperId_targetId: {
-          swiperId,
-          targetId,
+          swiperId: swiperId,
+          targetId: targetUserId, // استفاده از متغیر جدید
         }
       },
-      update: { type },
-      create: { swiperId, targetId, type },
+      update: { type: interactionType }, // استفاده از متغیر جدید
+      create: { 
+        swiperId: swiperId, 
+        targetId: targetUserId, // استفاده از متغیر جدید
+        type: interactionType // استفاده از متغیر جدید
+      },
     });
 
     let isMatch = false;
-    if (type === 'LIKE') {
+    if (interactionType === 'LIKE') {
       const reverseInteraction = await prisma.interaction.findUnique({
         where: {
-          swiperId_targetId: { swiperId: targetId, targetId: swiperId },
+          swiperId_targetId: { swiperId: targetUserId, targetId: swiperId },
         },
       });
 
       if (reverseInteraction && reverseInteraction.type === 'LIKE') {
         isMatch = true;
 
-        // مرتب‌سازی آیدی‌ها برای جلوگیری از ثبت تکراری (همیشه آیدی کوچکتر در user1)
-        const [user1Id, user2Id] = swiperId < targetId 
-          ? [swiperId, targetId] 
-          : [targetId, swiperId];
+        const [user1Id, user2Id] = swiperId < targetUserId 
+          ? [swiperId, targetUserId] 
+          : [targetUserId, swiperId];
 
-        // ثبت قطعی مچ در دیتابیس
         await prisma.match.upsert({
           where: {
             user1Id_user2Id: { user1Id, user2Id }

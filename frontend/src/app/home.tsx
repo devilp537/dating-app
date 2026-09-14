@@ -244,9 +244,13 @@ export default function HomeScreen() {
     setUsers((prev) => prev.slice(1));
     setExternalDirection(null);
     dragX.value = 0;
-
-    try {
-      const response = await apiClient.post('/users/swipe', { targetId: swipedUser.id, type });
+    
+      try {
+      // تغییر اسامی کلیدها برای هماهنگی با اعتبارسنجی بک‌اند (Zod)
+      const response = await apiClient.post('/users/swipe', { 
+        targetUserId: swipedUser.id, 
+        interactionType: type 
+      });
       if (response.data?.isMatch) {
         triggerHaptic('success');
         setMatchedUser(swipedUser);

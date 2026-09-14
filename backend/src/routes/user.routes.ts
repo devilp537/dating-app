@@ -7,15 +7,17 @@ import {
   swipeUser 
 } from '../controllers/user.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
+// ایمپورت میدلور و قوانین Zod 👇
+import { validate } from '../middlewares/validate.middleware';
+import { updateProfileSchema, swipeSchema } from '../validators/user.validator';
 
 const router = Router();
 
-// مسیرهای لاگین و OTP از اینجا حذف شدند و فقط در auth.routes.ts هستند
-
-// مسیرهای پروفایل و دیسکاوری (نیاز به احراز هویت دارند)
 router.get('/profile', authMiddleware, getProfile);
-router.put('/profile', authMiddleware, updateProfile);
 router.get('/discovery', authMiddleware, getDiscoveryUsers);
-router.post('/swipe', authMiddleware, swipeUser);
+
+// اعمال Zod روی آپدیت پروفایل و لایک کردن 👇
+router.put('/profile', authMiddleware, validate(updateProfileSchema), updateProfile);
+router.post('/swipe', authMiddleware, validate(swipeSchema), swipeUser);
 
 export default router;
