@@ -1,8 +1,7 @@
+// src/routes/user.routes.ts
 import { Router } from 'express';
 import { 
-  requestOtp, 
-  verifyOtp, 
-  getProfile, // این تابع جا افتاده بود
+  getProfile, 
   updateProfile, 
   getDiscoveryUsers, 
   swipeUser 
@@ -11,12 +10,10 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// مسیرهای احراز هویت
-router.post('/login', requestOtp);
-router.post('/verify', verifyOtp);
+// مسیرهای لاگین و OTP از اینجا حذف شدند و فقط در auth.routes.ts هستند
 
 // مسیرهای پروفایل و دیسکاوری (نیاز به احراز هویت دارند)
-router.get('/profile', authMiddleware, getProfile); // اضافه شدن مسیر دریافت پروفایل
+router.get('/profile', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile);
 router.get('/discovery', authMiddleware, getDiscoveryUsers);
 router.post('/swipe', authMiddleware, swipeUser);
