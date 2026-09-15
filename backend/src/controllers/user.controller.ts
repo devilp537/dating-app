@@ -148,3 +148,74 @@ export const swipeUser = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: 'خطا در ثبت تعامل' });
   }
 };
+
+// --- مسدود کردن کاربر (Block) ---
+export const blockUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { targetUserId } = req.body;
+    const userId = req.userId as string;
+
+    // ۱. ثبت تعامل به عنوان BLOCK (اگر قبلاً لایک بوده هم به بلاک تغییر می‌کند)
+    await prisma.interaction.upsert({
+      where: {
+        swiperId_targetId: { swiperId: userId, targetId: targetUserId }
+      },
+      update: { type: 'BLOCK' },
+      create: { swiperId: userId, targetId: targetUserId, type: 'BLOCK' }
+    });
+
+    // ۲. اگر با این شخص مچ بودیم، مچ باید پاک شود (Unmatch)
+    const [user1Id, user2Id] = userId < targetUserId 
+      ? [userId, targetUserId] 
+      : [targetUserId, userId];
+
+    await prisma.match.deleteMany({
+      where: { user1Id, user2Id }
+    });
+
+    res.json({ success: true, message: 'کاربر با موفقیت مسدود شد' });
+  } catch (error) {
+    console.error('Block User Error:', error);
+    res.status(500).json({ error: 'خطا در مسدودسازی کاربر' });
+  }
+};
+
+// --- گزارش دادن کاربر (Report) ---
+export const reportUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { targetUserId, reason } = req.body;
+    const reporterId = req.userId as string;
+
+    // ۱. ثبت گزارش در دیتابیس
+    await prisma.report.create({
+      data: {
+        reporterId,
+        reportedId: targetUserId,
+        reason: reason || 'گزارش رفتار نامناسب',
+      }
+    });
+
+    // ۲. معمولاً وقتی کسی را ریپورت می‌کنیم، بلافاصله بلاک هم می‌شود
+    await prisma.interaction.upsert({
+      where: {
+        swiperId_targetId: { swiperId: reporterId, targetId: targetUserId }
+      },
+      update: { type: 'BLOCK' },
+      create: { swiperId: reporterId, targetId: targetUserId, type: 'BLOCK' }
+    });
+
+    // پاک کردن مچ در صورت وجود
+    const [user1Id, user2Id] = reporterId < targetUserId 
+      ? [reporterId, targetUserId] 
+      : [targetUserId, reporterId];
+
+    await prisma.match.deleteMany({
+      where: { user1Id, user2Id }
+    });
+
+    res.json({ success: true, message: 'گزارش شما ثبت و کاربر مسدود شد' });
+  } catch (error) {
+    console.error('Report User Error:', error);
+    res.status(500).json({ error: 'خطا در ثبت گزارش' });
+  }
+};

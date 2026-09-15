@@ -17,3 +17,8 @@ export const swipeSchema = z.object({
   targetUserId: z.string({ message: 'آیدی کاربر هدف الزامی است' }),
   interactionType: z.enum(['LIKE', 'PASS'], { message: 'نوع تعامل نامعتبر است' })
 });
+
+export const blockReportSchema = z.object({
+  targetUserId: z.string({ message: 'آیدی کاربر هدف الزامی است' }),
+  reason: z.string().optional() // برای ریپورت، دلیل اختیاری/اجباری
+});

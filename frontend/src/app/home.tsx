@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Pressable, Platform, Modal, Clipboard, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Pressable, Platform, Modal, Clipboard, FlatList, Alert } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { 
   useSharedValue, 
@@ -30,6 +30,12 @@ const PROVINCES = [
   'کهگیلویه و بویراحمد', 'گلستان', 'گیلان', 'لرستان', 'مازندران', 'مرکزی', 'هرمزگان', 'همدان', 'یزد'
 ];
 
+const REPORT_REASONS = [
+  'محتوای نامناسب',
+  'اسپم (Spam)',
+  'تشابه کارت‌ها (پروفایل فیک)'
+];
+
 const CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.75, 300);
 const CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.52, 380);
 
@@ -44,6 +50,7 @@ const COLORS = {
   textMuted: '#8B879A',
   pass: '#FB7185',
   rewind: '#FBBF24',
+  danger: '#EF4444' // رنگ قرمز برای ریپورت
 };
 
 type User = { id: string; name: string; bio: string; contactId?: string };
@@ -142,7 +149,7 @@ const BackgroundCard = ({ user, dragX }: { user: User; dragX: SharedValue<number
   );
 };
 
-const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection, dragX }: any) => {
+const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection, dragX, onOpenReportMenu }: any) => {
   const translateX = dragX;
   const translateY = useSharedValue(0);
   const userEmoji = EMOJIS[user.id.charCodeAt(0) % EMOJIS.length];
@@ -181,6 +188,15 @@ const SwipeableCard = ({ user, onSwipeOut, externalSwipeDirection, dragX }: any)
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[animatedStyle, { position: 'absolute', zIndex: 1, width: '100%', alignItems: 'center' }]}>
         <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 36, elevation: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 16 }}>
+          
+          {/* دکمه سه نقطه برای گزارش در گوشه بالا */}
+          <TouchableOpacity 
+            style={{ position: 'absolute', top: 20, right: 20, zIndex: 10, padding: 8 }}
+            onPress={() => onOpenReportMenu(user)}
+          >
+            <Feather name="more-vertical" size={24} color={COLORS.textMuted} />
+          </TouchableOpacity>
+
           <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
             <Text style={{ fontSize: 44 }}>{userEmoji}</Text>
           </View>
@@ -206,6 +222,10 @@ export default function HomeScreen() {
 
   const [myProvinceModalVisible, setMyProvinceModalVisible] = useState(false);
   const [myCurrentProvince, setMyCurrentProvince] = useState<string | null>(null);
+
+  // استیت‌های مودال ریپورت
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [selectedUserToReport, setSelectedUserToReport] = useState<User | null>(null);
 
   const dragX = useSharedValue(0);
 
@@ -246,7 +266,6 @@ export default function HomeScreen() {
     dragX.value = 0;
     
       try {
-      // تغییر اسامی کلیدها برای هماهنگی با اعتبارسنجی بک‌اند (Zod)
       const response = await apiClient.post('/users/swipe', { 
         targetUserId: swipedUser.id, 
         interactionType: type 
@@ -267,6 +286,27 @@ export default function HomeScreen() {
     const lastUser = history[0];
     setHistory((prev) => prev.slice(1));
     setUsers((prev) => [lastUser, ...prev]);
+  };
+
+  // تابع ریپورت کاربر از روی کارت دیسکاوری
+  const handleReport = async (reason: string) => {
+    if (!selectedUserToReport) return;
+    
+    try {
+      await apiClient.post('/users/report', { 
+        targetUserId: selectedUserToReport.id, 
+        reason 
+      });
+      
+      // حذف کاربر از لیست روی صفحه
+      setUsers((prev) => prev.filter(u => u.id !== selectedUserToReport.id));
+      setReportModalVisible(false);
+      setSelectedUserToReport(null);
+      
+      Alert.alert('گزارش ثبت شد', 'کاربر مسدود شد و دیگر به شما نمایش داده نخواهد شد.');
+    } catch (error) {
+      Alert.alert('خطا', 'مشکلی در ثبت گزارش پیش آمد.');
+    }
   };
 
   const applyProvinceFilter = async (province: string | null) => {
@@ -327,7 +367,14 @@ export default function HomeScreen() {
           ) : users.length > 0 ? (
             <View style={{ width: '100%', height: CARD_HEIGHT, alignItems: 'center', justifyContent: 'center' }}>
               {users.length > 1 && <BackgroundCard user={users[1]} dragX={dragX} />}
-              <SwipeableCard key={users[0].id} user={users[0]} dragX={dragX} externalSwipeDirection={externalDirection} onSwipeOut={(type: 'LIKE' | 'PASS') => handleSwipeOut(type)} />
+              <SwipeableCard 
+                key={users[0].id} 
+                user={users[0]} 
+                dragX={dragX} 
+                externalSwipeDirection={externalDirection} 
+                onSwipeOut={(type: 'LIKE' | 'PASS') => handleSwipeOut(type)} 
+                onOpenReportMenu={(user: any) => { setSelectedUserToReport(user); setReportModalVisible(true); }}
+              />
             </View>
           ) : (
             <Animated.View entering={FadeIn.duration(400)} style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: 36, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -429,6 +476,42 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 )}
               />
+            </View>
+          </View>
+        </Modal>
+
+        {/* مودال انتخاب گزارش */}
+        <Modal visible={reportModalVisible} animationType="slide" transparent>
+          <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+            <View className="rounded-t-[32px] pt-4 pb-10 px-2" style={{ backgroundColor: COLORS.surface }}>
+              <View className="flex-row justify-between items-center px-6 mb-4 mt-2">
+                <Text className="text-lg font-bold" style={{ color: COLORS.danger }}>گزارش کاربر</Text>
+                <TouchableOpacity onPress={() => setReportModalVisible(false)} className="p-2">
+                  <Feather name="x" size={24} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <Text className="px-6 mb-6 text-sm leading-6" style={{ color: COLORS.textMuted }}>
+                در صورت تخلف، دلیل گزارش را انتخاب کنید تا این شخص مسدود شده و مورد بررسی قرار گیرد:
+              </Text>
+
+              {REPORT_REASONS.map((reason, index) => (
+                <TouchableOpacity 
+                  key={index}
+                  className="px-6 py-4 border-b flex-row items-center justify-between" 
+                  style={{ borderBottomColor: COLORS.border }}
+                  onPress={() => handleReport(reason)}
+                >
+                  <Text className="text-base font-medium" style={{ color: COLORS.text }}>🚩 {reason}</Text>
+                </TouchableOpacity>
+              ))}
+              
+              <TouchableOpacity 
+                className="px-6 py-4 items-center justify-center mt-4" 
+                onPress={() => setReportModalVisible(false)}
+              >
+                <Text className="text-base font-bold" style={{ color: COLORS.textMuted }}>انصراف</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
