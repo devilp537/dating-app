@@ -51,10 +51,8 @@ model User {
   // روابط تعاملات
   sentInteractions     Interaction[] @relation("Swiper")
   receivedInteractions Interaction[] @relation("Target")
-
-  // روابط چت
-  sentMessages         Message[]     @relation("SentMessages")
-  receivedMessages     Message[]     @relation("ReceivedMessages")
+  
+  // روابط چت (به صورت کامل پاک شدند)
 }
 
 model ContactInfo {
@@ -90,14 +88,14 @@ model Match {
 }
 
 model Report {
-  id          String   @id @default(uuid())
-  reporterId  String
-  reporter    User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  reportedId  String
-  reported    User     @relation("Reported", fields: [reportedId], references: [id], onDelete: Cascade)
-  reason      String
-  status      String   @default("PENDING")
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  reporterId String
+  reporter   User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedId String
+  reported   User     @relation("Reported", fields: [reportedId], references: [id], onDelete: Cascade)
+  reason     String
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
 }
 
 model Interaction {
@@ -113,13 +111,4 @@ model Interaction {
   @@unique([swiperId, targetId])
 }
 
-model Message {
-  id         String   @id @default(uuid())
-  senderId   String
-  receiverId String
-  text       String
-  createdAt  DateTime @default(now())
-
-  sender     User @relation("SentMessages", fields: [senderId], references: [id])
-  receiver   User @relation("ReceivedMessages", fields: [receiverId], references: [id])
-}
+// مدل Message به صورت کامل حذف شد

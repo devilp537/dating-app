@@ -29,7 +29,7 @@ export default function MatchesScreen() {
       if (!token) return router.replace('/');
       
       // apiClient به طور خودکار هدر Authorization را با token مدیریت می‌کند
-      const res = await apiClient.get('/chat/matches');
+      const res = await apiClient.get('/matches');
       setMatches(res.data.slice(0, 10));
     } catch {
       // خطاها در این بخش هندل می‌شوند
