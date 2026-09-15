@@ -15,5 +15,5 @@ export const updateProfileSchema = z.object({
 export const swipeSchema = z.object({
   // جایگزینی required_error با message 
   targetUserId: z.string({ message: 'آیدی کاربر هدف الزامی است' }),
-  interactionType: z.enum(['LIKE', 'DISLIKE'], { message: 'نوع تعامل نامعتبر است' })
+  interactionType: z.enum(['LIKE', 'PASS'], { message: 'نوع تعامل نامعتبر است' })
 });
