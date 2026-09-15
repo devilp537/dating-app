@@ -11,8 +11,43 @@ import matchRoutes from './routes/match.routes';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(helmet());
-app.use(cors());
+// ۱. تنظیم دقیق Helmet برای امنیت بیشتر و اجبار به HTTPS
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    hsts: {
+      maxAge: 31536000, // یک سال
+      includeSubDomains: true,
+      preload: true,
+    },
+  })
+);
+
+// ۲. تنظیم دقیق CORS برای جلوگیری از دسترسی دامنه‌های متفرقه
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:8081', // آدرس پیش‌فرض اکسپو روی وب
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // اجازه به ریکوئست‌های بدون origin (مثل خود اپلیکیشن موبایل یا Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('خطای CORS: دسترسی از این دامنه مجاز نیست'));
+    }
+  },
+  credentials: true,
+}));
+
 app.use(express.json());
 
 // Routes
